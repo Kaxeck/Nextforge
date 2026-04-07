@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Header } from './components/layout/Header';
-import { MetricsBar } from './components/layout/MetricsBar';
 import { Banner } from './components/layout/Banner';
 import { Marketplace } from './pages/Marketplace';
 import { MyMachines } from './pages/MyMachines';

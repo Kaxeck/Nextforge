@@ -176,7 +176,7 @@ body { background: var(--color-bg-app); margin: 0; color: var(--color-text-prima
 .nf-input-mock { background: var(--color-bg-secondary); border: 0.5px solid var(--color-border-primary); border-radius: var(--border-radius-md); padding: 8px 12px; font-size: 12px; color: var(--color-text-primary); margin-bottom: 10px; }
 .nf-input-mock.ph { color: var(--color-text-dim); }
 .nf-input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.nf-btn-primary { background: var(--color-text-primary); color: var(--color-bg-app); border: none; border-radius: var(--border-radius-md); padding: 10px 16px; font-size: 12px; font-weight: 500; cursor: pointer; width: 100%; font-family: 'DM Sans', sans-serif; letter-spacing: .2px; }
+.nf-btn-primary { background: var(--color-accent); color: white; border: none; border-radius: var(--border-radius-md); padding: 10px 16px; font-size: 12px; font-weight: 500; cursor: pointer; width: 100%; font-family: 'DM Sans', sans-serif; letter-spacing: .2px; }
 .nf-btn-outline { background: transparent; color: var(--color-text-primary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 8px 14px; font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; width: 100%; margin-top: 6px; }
 .nf-btn-danger { background: transparent; color: var(--color-danger); border: 0.5px solid var(--color-danger); border-radius: var(--border-radius-md); padding: 8px 14px; font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; width: 100%; margin-top: 6px; }
 
@@ -446,3 +446,13 @@ body { background: var(--color-bg-app); margin: 0; color: var(--color-text-prima
 .nf-range { display: flex; gap: 4px; }
 .nf-range-btn { font-size: 10px; padding: 3px 8px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-primary); background: transparent; color: var(--color-text-secondary); cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .15s; }
 .nf-range-btn.active { background: var(--color-bg-tertiary); color: var(--color-text-primary); border-color: var(--color-border-primary); }
+
+/* x402 spinner animation */
+.spin { animation: x402spin 1s linear infinite; }
+@keyframes x402spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Disabled button state */
+.nf-btn-primary:disabled, .nf-btn-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

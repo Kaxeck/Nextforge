@@ -1,6 +1,16 @@
 import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { connectFreighter } from '../../lib/stellar';
 
 export function Header({ theme, toggleTheme }: { theme: string; toggleTheme: () => void }) {
+  const [wallet, setWallet] = useState<string | null>(null);
+
+  const handleConnect = async () => {
+    const address = await connectFreighter();
+    if (address) setWallet(address);
+    else alert("Please install the Freighter browser extension.");
+  };
+
   return (
     <div className="nf-header">
       <div className="nf-logo">
@@ -30,12 +40,19 @@ export function Header({ theme, toggleTheme }: { theme: string; toggleTheme: () 
             </svg>
           )}
         </button>
-        <div className="nf-wallet-pill">
-          <div className="nf-wallet-dot"></div>
-          <span className="mono" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>GAXK...7R2P</span>
-          <span className="mono" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-primary)' }}>124.5 XLM</span>
-          <span style={{ fontSize: '10px', padding: '2px 7px', background: 'var(--color-bg-secondary)', borderRadius: '20px', color: 'var(--color-text-secondary)' }}>wallet</span>
-        </div>
+        {wallet ? (
+          <div className="nf-wallet-pill">
+            <div className="nf-wallet-dot"></div>
+            <span className="mono" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+              {wallet.substring(0, 4)}...{wallet.substring(wallet.length - 4)}
+            </span>
+            <span style={{ fontSize: '10px', padding: '2px 7px', background: 'var(--color-bg-secondary)', borderRadius: '20px', color: 'var(--color-success)' }}>connected</span>
+          </div>
+        ) : (
+          <button className="nf-btn-primary" style={{ padding: "6px 14px", fontSize: "11px" }} onClick={handleConnect}>
+            Connect Freighter
+          </button>
+        )}
       </div>
     </div>
   );

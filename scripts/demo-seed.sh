@@ -63,7 +63,12 @@ stellar contract invoke --id $CONTRACT_ID --source nextforge-deployer --network 
     --location "GDL, MX" \
     --materials "PP, ABS, Nylon"
 
-echo "3️⃣ AI Broker: Verifying machines..."
+echo "3️⃣ AI Broker: Syncing with Backend..."
+curl -X POST http://localhost:3001/api/webhook/machine_registered -H "Content-Type: application/json" -d '{"machine_id": "M-001", "machine_type": "FDM", "price": 50000, "location": "León, MX", "materials": "PLA, PETG, ABS"}'
+curl -X POST http://localhost:3001/api/webhook/machine_registered -H "Content-Type: application/json" -d '{"machine_id": "M-002", "machine_type": "CNC", "price": 30000, "location": "CDMX, MX", "materials": "Aluminum, Wood"}'
+curl -X POST http://localhost:3001/api/webhook/machine_registered -H "Content-Type: application/json" -d '{"machine_id": "M-004", "machine_type": "INJECTION", "price": 120000, "location": "GDL, MX", "materials": "PP, ABS, Nylon"}'
+
+echo "4️⃣ AI Broker: Verifying machines on-chain..."
 stellar contract invoke --id $CONTRACT_ID --source nextforge-deployer --network testnet -- verify_machine --machine_id "M-001"
 stellar contract invoke --id $CONTRACT_ID --source nextforge-deployer --network testnet -- verify_machine --machine_id "M-002"
 stellar contract invoke --id $CONTRACT_ID --source nextforge-deployer --network testnet -- verify_machine --machine_id "M-004"

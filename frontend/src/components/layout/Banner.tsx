@@ -29,7 +29,7 @@ export function Banner() {
           lineHeight: '1.6', 
           maxWidth: '850px' 
         }}>
-          You are interacting with a fully autonomous industrial network where AI agents manage end-to-end production. Industrial machines—from <strong>3D Printers and CNC Routers to Plastic Injection and PLC Development</strong>—act as sovereign economic nodes. Your AI Broker autonomously manages tools, orders supplies, triggers predictive maintenance, and verifies social-onchain reputation, executing streaming x402 micropayments per cycle on the Stellar network. <strong>Zero human intervention required.</strong>
+          You are interacting with NextForge: the operational terminal for the autonomous web3 industrial economy. NextForge does not act as a central broker; it is the visualization layer where independent <strong>Buyer Agents</strong> (representing companies) and <strong>Machine Agents</strong> (representing sovereign industrial hardware like CNC & 3D Printers) converge. Watch as autonomous software negotiates capabilities, verifies on-chain trust, and streams x402 micropayments peer-to-peer over the Stellar Network. <strong>Zero human intervention required.</strong>
         </p>
         <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
           <span className="nf-tag" style={{ border: '1px solid var(--color-success)', color: 'var(--color-success)', background: 'var(--color-success-bg)' }}>🟢 Network Live</span>

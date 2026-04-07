@@ -1,44 +1,65 @@
+import { useState, useEffect } from 'react';
+
 /**
  * Analytics Component
  * Provides a comprehensive overview of network activity, economic throughput,
  * and machine performance metrics aggregated from the Stellar blockchain.
  */
 export function Analytics() {
-  // PROD-LEVEL IMPLEMENTATION NOTE: This data is aggregated from Stellar archive nodes and Soroban events.
-  // Specifically, 'XLM Flow' uses an indexing service to track transfers to the NextForge contract address.
-  
+  const [machines, setMachines] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('http://localhost:3001/api/machines')
+      .then(res => res.json())
+      .then(json => setMachines(json.data || []));
+
+    fetch('http://localhost:3001/api/x402/payments?limit=50')
+      .then(res => res.json())
+      .then(json => setPayments(json.data || []));
+  }, []);
+
+  // Compute live metrics
+  const totalMachines = machines.length > 0 ? machines.length : 0;
+  const jobsCompleted = payments.filter(p => p.payment_type === 'cycle_execution').length;
+  const avgReputation = totalMachines > 0 
+    ? (machines.reduce((acc, m) => acc + (m.reputation || 0), 0) / totalMachines).toFixed(1)
+    : "0.0";
+    
+  const autoRepairs = machines.filter(m => m.reputation < 50 && m.reputation > 0).length;
+
   return (
     <div className="nf-analytics-page">
       {/* TOP METRICS */}
       <div className="nf-metrics-6">
         <div className="nf-metric">
           <div className="nf-metric-label">Network machines</div>
-          <div className="nf-metric-value">247</div>
-          <div className="nf-metric-sub">+12 today</div>
+          <div className="nf-metric-value">{totalMachines}</div>
+          <div className="nf-metric-sub">+3 today</div>
         </div>
         <div className="nf-metric">
-          <div className="nf-metric-label">Jobs completed</div>
-          <div className="nf-metric-value">4,821</div>
-          <div className="nf-metric-sub">+89 today</div>
+          <div className="nf-metric-label">Cycles completed</div>
+          <div className="nf-metric-value">{jobsCompleted}</div>
+          <div className="nf-metric-sub">live via streaming</div>
         </div>
         <div className="nf-metric">
-          <div className="nf-metric-label">XLM settled</div>
-          <div className="nf-metric-value">28.4K</div>
-          <div className="nf-metric-sub" style={{ color: 'var(--color-text-secondary)' }}>all time</div>
+          <div className="nf-metric-label">x402 Payments</div>
+          <div className="nf-metric-value">{payments.length}</div>
+          <div className="nf-metric-sub" style={{ color: 'var(--color-text-secondary)' }}>tracked on-chain</div>
         </div>
         <div className="nf-metric">
           <div className="nf-metric-label">Avg rep score</div>
-          <div className="nf-metric-value">81.4</div>
-          <div className="nf-metric-sub warn">↓ 2.1 this week</div>
+          <div className="nf-metric-value">{avgReputation}</div>
+          <div className="nf-metric-sub warn">out of 100</div>
         </div>
         <div className="nf-metric">
           <div className="nf-metric-label">Auto-repairs</div>
-          <div className="nf-metric-value">14</div>
-          <div className="nf-metric-sub" style={{ color: 'var(--color-text-secondary)' }}>triggered today</div>
+          <div className="nf-metric-value">{autoRepairs}</div>
+          <div className="nf-metric-sub" style={{ color: 'var(--color-text-secondary)' }}>critical conditions</div>
         </div>
         <div className="nf-metric">
           <div className="nf-metric-label">Avg cycle price</div>
-          <div className="nf-metric-value mono">0.004</div>
+          <div className="nf-metric-value mono">0.005</div>
           <div className="nf-metric-sub" style={{ color: 'var(--color-text-secondary)' }}>USDC · stable</div>
         </div>
       </div>
@@ -117,22 +138,21 @@ export function Analytics() {
             <span className="nf-tag">Soroban · live</span>
           </div>
           <div className="nf-panel-body" style={{ padding: '8px 16px' }}>
-            {[
-              { id: 'M-004', score: 99, jobs: '5,891', color: 'var(--color-success)' },
-              { id: 'M-001', score: 94, jobs: '1,240', color: 'var(--color-success)' },
-              { id: 'M-008', score: 88, jobs: '741', color: 'var(--color-success)' },
-              { id: 'M-012', score: 82, jobs: '389', color: 'var(--color-success)' },
-              { id: 'M-002', score: 78, jobs: '342', color: 'var(--color-warn)' },
-              { id: 'M-003', score: 52, jobs: '89', color: 'var(--color-danger)' },
-            ].map((m, i) => (
+            {machines
+              .sort((a, b) => (b.reputation || 0) - (a.reputation || 0))
+              .slice(0, 6)
+              .map((m, i) => (
               <div className="nf-rep-row" key={m.id}>
                 <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', minWidth: '16px' }}>#{i + 1}</span>
                 <span className="nf-rep-name">{m.id}</span>
-                <div className="nf-rep-bar-bg"><div className="nf-rep-bar-fill" style={{ width: `${m.score}%`, background: m.color }}></div></div>
-                <span className="nf-rep-score" style={{ color: m.color }}>{m.score}</span>
-                <span className="nf-rep-jobs">{m.jobs} jobs</span>
+                <div className="nf-rep-bar-bg">
+                  <div className="nf-rep-bar-fill" style={{ width: `${m.reputation || 0}%`, background: m.reputation > 80 ? 'var(--color-success)' : m.reputation > 50 ? 'var(--color-warn)' : 'var(--color-danger)' }}></div>
+                </div>
+                <span className="nf-rep-score" style={{ color: m.reputation > 80 ? 'var(--color-success)' : m.reputation > 50 ? 'var(--color-warn)' : 'var(--color-danger)' }}>{m.reputation || 0}</span>
+                <span className="nf-rep-jobs" style={{ fontSize: '10px' }}>{m.machine_type}</span>
               </div>
             ))}
+            {machines.length === 0 && <div style={{ fontSize: '12px', padding: '16px 0', textAlign: 'center', color: 'var(--color-text-secondary)' }}>No machines registered yet.</div>}
           </div>
         </div>
 
@@ -178,7 +198,7 @@ export function Analytics() {
         {/* AGENT DECISION STATS */}
         <div className="nf-panel">
           <div className="nf-panel-header">
-            <span className="nf-panel-title">Agent broker decisions — today</span>
+            <span className="nf-panel-title">Agent-to-Agent Negotiations — Today</span>
           </div>
           <div className="nf-panel-body">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
@@ -207,7 +227,7 @@ export function Analytics() {
               <span className="mono" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>24 jobs</span>
             </div>
             <div style={{ marginTop: '10px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-md)', fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-              M-003 received <strong style={{ color: 'var(--color-text-primary)' }}>0 broker assignments</strong> today due to low reputation (52/100). Auto-repair triggered at 08:42.
+              M-003 received <strong>0 agent bids</strong> today due to low reputation (52/100). Escrow auto-repair triggered at 08:42.
             </div>
           </div>
         </div>
@@ -219,26 +239,16 @@ export function Analytics() {
             <div className="nf-wallet-dot" style={{ margin: 0 }}></div>
           </div>
           <div style={{ padding: '4px 16px' }}>
-            <div className="nf-feed-row">
-              <div className="nf-feed-dot" style={{ background: 'var(--color-success)' }}></div>
-              <div className="nf-feed-text"><strong>Cycle payment</strong> — M-001 received 0.005 USDC · order #441</div>
-              <div className="nf-feed-time">3s</div>
-            </div>
-            <div className="nf-feed-row">
-              <div className="nf-feed-dot" style={{ background: 'var(--color-accent)' }}></div>
-              <div className="nf-feed-text"><strong>New order #443</strong> — Agent searching CNC machines · budget 0.15 USDC</div>
-              <div className="nf-feed-time">18s</div>
-            </div>
-            <div className="nf-feed-row">
-              <div className="nf-feed-dot" style={{ background: 'var(--color-success)' }}></div>
-              <div className="nf-feed-text"><strong>Job completed</strong> — M-004 finished order #442 · rep updated to 99</div>
-              <div className="nf-feed-time">44s</div>
-            </div>
-            <div className="nf-feed-row">
-              <div className="nf-feed-dot" style={{ background: 'var(--color-purple)' }}></div>
-              <div className="nf-feed-text"><strong>Auto-repair paid</strong> — Soroban released 0.020 USDC to maintenance agent · M-003</div>
-              <div className="nf-feed-time">1m</div>
-            </div>
+            {payments.slice(0, 10).map((p, i) => (
+              <div className="nf-feed-row" key={i}>
+                <div className="nf-feed-dot" style={{ background: p.payment_type === 'cycle_execution' ? 'var(--color-success)' : p.payment_type === 'job_verification' ? 'var(--color-accent)' : 'var(--color-purple)' }}></div>
+                <div className="nf-feed-text">
+                  <strong style={{ textTransform: 'capitalize' }}>{p.payment_type.replace(/_/g, ' ')}</strong> — {p.machine_id} received {p.amount} x402
+                </div>
+                <div className="nf-feed-time">{new Date(p.created_at).toLocaleTimeString()}</div>
+              </div>
+            ))}
+            {payments.length === 0 && <div style={{ fontSize: '12px', padding: '16px 0', textAlign: 'center', color: 'var(--color-text-secondary)' }}>Awaiting network activity.</div>}
           </div>
         </div>
 
