@@ -1,6 +1,4 @@
-#![no_std]
-
-use soroban_sdk::{symbol_short, Address, Env, String, Symbol};
+use soroban_sdk::{symbol_short, Address, Env, String};
 
 pub fn machine_registered(env: &Env, machine_id: String) {
     env.events()

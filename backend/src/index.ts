@@ -1,24 +1,33 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import path from 'path';
+import { initDatabase } from './services/database';
+import { pollContractEvents } from './services/stellar';
+import apiRoutes from './routes/api';
 
-// Load env vars from the root .env file
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config({ path: '../.env' }); // Load .env from root
 
 const app = express();
 const port = process.env.PORT || 3001;
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Main handler for the agent's offline calculations.
-// For the hackathon, this largely acts as a pass-through to the Soroban RPC,
-// but it's where we'll implement the proprietary machine-scouting ML in the future.
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', msg: 'Backend is fully operational' });
+// Initialize SQLite Cache
+initDatabase();
+
+// Start Stellar Event Listener
+pollContractEvents().catch(console.error);
+
+// Add AI API routes
+app.use('/api', apiRoutes);
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', service: 'NextForge AI Broker' });
 });
 
 app.listen(port, () => {
-  console.log(`Backend server listening at http://localhost:${port}`);
+  console.log(`🤖 NextForge AI Broker Layer running on http://localhost:${port}`);
+  console.log(`🔑 Connected to Soroban Contract: ${process.env.SOROBAN_CONTRACT_ID || 'PENDING'}`);
 });

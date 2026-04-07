@@ -1,5 +1,3 @@
-#![no_std]
-
 use soroban_sdk::{Address, Env, String, Symbol, Vec};
 use crate::types::{DataKey, Machine};
 use crate::events;
