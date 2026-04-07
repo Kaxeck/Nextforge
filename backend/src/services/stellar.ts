@@ -27,7 +27,7 @@ const server = new rpc.Server(RPC_URL);
 
 /**
  * Invokes verify_machine on the Smart Contract. 
- * This is called by the AI Broker if the machine looks legit.
+ * This is called by the Local Machine Agent if the machine looks legit.
  */
 export async function verifyMachineOnChain(machineId: string) {
     if (!ADMIN_SECRET) throw new Error("AI Admin Secret key not configured");

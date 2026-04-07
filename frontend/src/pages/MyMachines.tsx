@@ -351,10 +351,10 @@ export function MyMachines() {
         </div>
       ))}
 
-      {/* REGISTER NEW MACHINE FORM */}
+      {/* DEPLOY NEW MACHINE AGENT FORM */}
       <div className="nf-panel" style={{ marginTop: '20px' }}>
         <div className="nf-panel-header">
-          <span className="nf-panel-title">Register a new machine</span>
+          <span className="nf-panel-title">Deploy Hardware Node (Machine Agent)</span>
         </div>
         <div className="nf-panel-body">
           {/* EDUCATIONAL BANNER */}
@@ -363,8 +363,8 @@ export function MyMachines() {
               <Info size={18} color="var(--color-purple)" />
             </div>
             <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: '1.5' }}>
-              <strong>How registration works:</strong> When you register a machine, your conditions are committed cryptographically to the Stellar Soroban network. The NextForge Security Agent uses Gemini to independently review your hardware and prices to prevent money-laundering or price gouging. 
-              <br/><br/>If approved, your hardware activates an onboard Machine Agent available to autonomously accept jobs and receive direct crypto payouts.
+              <strong>How deployment works:</strong> When you deploy hardware to the network, your conditions are committed cryptographically to the Stellar Soroban network. Simultaneously, a localized Machine Agent uses AI to establish pricing parameters and securely expose your hardware to incoming requests.
+              <br/><br/>Once deployed, your Machine Agent autonomously intercepts jobs from the MCP Server, defends against impossible CAD files, and receives direct x402 crypto payouts.
             </div>
           </div>
 
@@ -433,7 +433,7 @@ export function MyMachines() {
             </div>
             
             <button type="submit" className="nf-btn-primary" style={{ width: '100%', padding: '14px', fontSize: '15px' }} disabled={submitting}>
-              {submitting ? "Signing via Freighter..." : "Register & Sign On-Chain"}
+              {submitting ? "Deploying via Freighter..." : "Deploy Agent & Sign On-Chain"}
             </button>
           </form>
         </div>

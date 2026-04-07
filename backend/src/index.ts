@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { initDatabase } from './services/database';
 import { pollContractEvents } from './services/stellar';
 import apiRoutes from './routes/api';
+import hardwareRoutes from './routes/hardware';
 
 // x402 Agentic Payments (loaded via require for CJS compatibility)
 // @ts-ignore - x402 types only resolve under ESM moduleResolution
@@ -66,8 +67,9 @@ try {
   console.warn('x402 middleware failed to initialize (facilitator may be offline):', (e as any).message);
 }
 
-// Add AI API routes
+// Add API routes
 app.use('/api', apiRoutes);
+app.use('/api/hardware', hardwareRoutes);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', service: 'NextForge Protocol Router' });

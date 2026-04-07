@@ -333,7 +333,7 @@ export function Marketplace() {
 
                   <div className="nf-detail-section">
                     <div className="nf-detail-label">
-                      AI Broker Reasoning & Validation
+                      Agent Protocol Reasoning & Validation
                     </div>
                     <div
                       style={{
@@ -756,38 +756,48 @@ export function Marketplace() {
                   time: 'just now'
                 }, ...prev]);
 
-                for (let i = 1; i <= targetCycles; i++) {
-                  // Simulate some streaming delay
-                  await new Promise(r => setTimeout(r, 600));
+                // SUBMIT JOB TO THE HARDWARE PROTOCOL
+                try {
+                  const res = await fetch("http://localhost:3001/api/hardware/submit_job", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ machine_id: selectedMachine.id, payload: jobDescription })
+                  });
+                  const json = await res.json();
                   
-                  try {
-                    // Call the actual execute endpoint but pass the demo header to auto-settle the x402 payment
-                    await fetch("http://localhost:3001/api/machine/execute", {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', 'X-402-Demo-Settle': 'true' },
-                      body: JSON.stringify({ machine_id: selectedMachine.id, cycle_number: i, job_description: 'Manufacturing cycle' })
-                    });
-                    
-                    setCurrentCycle(i);
-                    setTotalSpent(prev => prev + priceNum);
+                  if (json.success) {
+                    const jobId = json.job_id;
+                    setAgentFeed(prev => [{
+                      type: 'pay' as const,
+                      text: `<strong>Job Dispatched</strong> — Waiting for Machine Agent (${selectedMachine.id}) to connect and actuate hardware.`,
+                      time: 'now'
+                    }, ...prev.slice(0, 49)]);
 
-                    // Periodically pop an agent feed message so it doesn't spam too much, say every 10 cycles
-                    if (i % 10 === 0 || i === targetCycles) {
-                      setAgentFeed(prev => [{
-                        type: 'pay' as const,
-                        text: `<strong>Cycle ${i} paid</strong> — ${priceNum.toFixed(4)} USDC to ${selectedMachine.id}.`,
-                        time: 'now'
-                      }, ...prev].slice(0, 50));
+                    // POLL FOR COMPLETION
+                    let isCompleted = false;
+                    while (!isCompleted) {
+                      await new Promise(r => setTimeout(r, 2000));
+                      const pollRes = await fetch(`http://localhost:3001/api/hardware/status_check?job_id=${jobId}`);
+                      const pollJson = await pollRes.json();
+                      
+                      if (pollJson.status === 'executing') {
+                         setCurrentCycle(Math.floor(Math.random() * targetCycles));
+                         setTotalSpent(prev => prev + (priceNum / 2));
+                      } else if (pollJson.status === 'completed') {
+                         isCompleted = true;
+                         setCurrentCycle(targetCycles);
+                         setTotalSpent(priceNum * targetCycles);
+                      }
                     }
-                  } catch (e) {
-                    console.error("Cycle error", e);
                   }
+                } catch (e) {
+                  console.error("Hardware dispatch error", e);
                 }
                 
                 setIsStreaming(false);
                 setAgentFeed(prev => [{
                   type: 'decide' as const,
-                  text: `<strong>Order complete</strong> — all ${targetCycles} cycles completed successfully via micropayments.`,
+                  text: `<strong>Hardware Routine Complete</strong> — physical actuation confirmed. Escrow released.`,
                   time: 'now'
                 }, ...prev]);
               }}

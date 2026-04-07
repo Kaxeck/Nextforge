@@ -20,6 +20,7 @@ export function initDatabase() {
             location TEXT,
             reputation INTEGER DEFAULT 50,
             ai_notes TEXT,
+            last_heartbeat DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -61,6 +62,15 @@ export function initDatabase() {
             price_per_unit REAL DEFAULT 0,
             location TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS hardware_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            machine_id TEXT,
+            payload TEXT,
+            status TEXT DEFAULT 'pending', -- pending, executing, completed, failed
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(machine_id) REFERENCES machines_cache(id)
         );
     `);
     

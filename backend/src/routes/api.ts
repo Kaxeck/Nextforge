@@ -125,7 +125,7 @@ router.get('/relay/machine_agent/evaluate_job', async (req: Request, res: Respon
         });
     } catch (e) {
         console.error(e);
-        res.status(500).json({ success: false, error: "Broker evaluation failed" });
+        res.status(500).json({ success: false, error: "Relay evaluation failed" });
     }
 });
 

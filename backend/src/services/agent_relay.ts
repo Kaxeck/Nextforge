@@ -55,11 +55,8 @@ export async function handleNewRegistration(
             - If the price is extremely out of market range or the materials are incompatible with the machine type (e.g. Laser cutting Granite for $0.0001), answer EXACTLY with the word "SUSPICIOUS" followed by the reason why a physical inspection (Gig-Economy Bounty) is required.
         `;
 
-        // If no API key, bypass for demo purposes
-        if (process.env.GEMINI_API_KEY === "dummy" || !process.env.GEMINI_API_KEY) {
-            console.log("No Gemini API Key found. Auto-approving for hackathon demo.");
-            await verifyMachineOnChain(machineId);
-            return;
+        if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "dummy") {
+            throw new Error("Missing Gemini API Key for Audits");
         }
 
         const result = await model.generateContent(prompt);
@@ -113,8 +110,8 @@ export async function evaluatePriceUpdate(machineId: string, machineType: string
             - If it's absurdly high or low, answer EXACTLY with the word "REJECTED" followed by a short explanation of why the NextForge network will not accept this update to prevent market manipulation.
         `;
 
-        if (process.env.GEMINI_API_KEY === "dummy" || !process.env.GEMINI_API_KEY) {
-            return { success: true, reason: "Market validation bypassed (No API Key)." };
+        if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "dummy") {
+            throw new Error("Missing Gemini API Key for Price Validation");
         }
 
         const result = await model.generateContent(prompt);
@@ -157,8 +154,8 @@ export async function evaluateJobFeasibility(machine: any, jobDescription: strin
             - If it is physically impossible, incompatible, or dangerous for your hardware (e.g. printing titanium on a plastic FDM printer), reply EXACTLY with "REJECTED" followed by the technical reason indicating why you are refusing the Buyer Agent's job payload.
         `;
 
-        if (process.env.GEMINI_API_KEY === "dummy" || !process.env.GEMINI_API_KEY) {
-            return { success: true, reason: "Job appears technically feasible (AI bypassed)." };
+        if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "dummy") {
+            throw new Error("Missing Gemini API Key for Audits");
         }
 
         const result = await model.generateContent(prompt);
@@ -169,9 +166,9 @@ export async function evaluateJobFeasibility(machine: any, jobDescription: strin
         } else {
             return { success: false, reason: responseString.replace("REJECTED", "").trim() };
         }
-    } catch (e) {
+    } catch (e: any) {
         console.error("Job Evaluation failed", e);
-        return { success: true, reason: "Job feasibility assumed ok (AI error)." };
+        return { success: false, reason: `Job feasibility failure: ${e.message}` };
     }
 }
 
@@ -208,13 +205,8 @@ export async function autonomousMachineSearch(buyerPrompt: string, machines: any
             If no machine matches, return "machineId": null.
         `;
 
-        if (process.env.GEMINI_API_KEY === "dummy" || !process.env.GEMINI_API_KEY) {
-            // Stub it for demo fallback
-            const fallback = machines.find(m => m.status === 'verified') || machines[0];
-            return { 
-                machineId: fallback.id, 
-                reasoning: "Selected based on general availability (AI bypassed due to missing key)." 
-            };
+        if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "dummy") {
+            throw new Error("Missing Gemini API Key. Autonomous search aborted.");
         }
 
         const result = await model.generateContent(prompt);
