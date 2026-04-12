@@ -50,27 +50,30 @@ def auto_detect_printer() -> serial.Serial:
 
     return None
 
+def send_status(machine_id, status_signal):
+    """Helper to send immediate online/offline signals."""
+    try:
+        requests.post(
+            f"{NEXTFORGE_URL}/api/hardware/heartbeat", 
+            json={"machine_id": machine_id, "status": status_signal},
+            timeout=5
+        )
+        print(f"📡 [STATUS] Sent signal: {status_signal}")
+    except:
+        pass
+
 def heartbeat_worker(machine_id):
-    """Background thread to keep the 'Online' status alive regardless of HW state."""
-    print(f"📡 [HB THREAD] Heartbeat worker started for {machine_id}")
+    """Background thread to keep the 'Online' status alive at a very low frequency."""
+    print(f"📡 [HB THREAD] Heartbeat worker started (Standby mode: 5 min interval)")
     while is_running:
         try:
-            # We use a very short timeout for heartbeats to prevent blocking
-            print(f"📡 [HB] Sending heartbeat to {NEXTFORGE_URL}...")
-            hb = requests.post(
-                f"{NEXTFORGE_URL}/api/hardware/heartbeat", 
-                json={"machine_id": machine_id},
-                timeout=5
-            )
-            if hb.status_code == 200:
-                print("✅ [HB] Heartbeat accepted.")
-            else:
-                print(f"❌ [HB] Heartbeat rejected ({hb.status_code})")
+            print(f"📡 [HB] Standby heartbeat...")
+            send_status(machine_id, "heartbeat")
         except Exception as e:
             print(f"⚠️  [HB] Network Error: {e}")
         
-        # Reduced sleep for higher responsiveness during demo
-        time.sleep(5)
+        # Idle/Standby heartbeat every 5 minutes
+        time.sleep(300)
 
 def poll_worker(machine_id):
     """Background thread to poll for jobs and execute them."""
@@ -93,16 +96,20 @@ def poll_worker(machine_id):
             )
             data = response.json()
             
+            # ON-DEMAND VERIFICATION: If the server asks for a ping, give it immediately.
+            if data.get("ping_required"):
+                print("⚡ [POLL] On-demand ping requested by server. Responding...")
+                send_status(machine_id, "heartbeat")
+
             if data.get("has_job"):
                 job = data["job"]
                 print(f"\n⚠️  [POLL] PAYLOAD DETECTED! Job ID: {job['id']}")
                 execute_job(job)
                 
         except Exception as e:
-            # Silent failure for polling to avoid log spam, heartbeat thread handles visibility
             pass
             
-        time.sleep(3)
+        time.sleep(10)
 
 def execute_job(job):
     payload = job['payload']
@@ -152,6 +159,9 @@ if __name__ == "__main__":
     machine_id = sys.argv[1]
     print_header()
 
+    # 0. Immediate STARTUP signal
+    send_status(machine_id, "online")
+
     # 1. Health Server (Background)
     threading.Thread(target=run_health_server, daemon=True).start()
     
@@ -164,4 +174,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n[*] SHUTDOWN: Stopping agent...")
         is_running = False
+        send_status(machine_id, "offline") # Immediate SHUTDOWN signal
         if printer_serial: printer_serial.close()
+        time.sleep(1) # Give it a second to send the signal
+

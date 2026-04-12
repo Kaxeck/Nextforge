@@ -25,6 +25,7 @@ export function initDatabase() {
             reputation INTEGER DEFAULT 50,
             ai_notes TEXT,
             last_heartbeat DATETIME,
+            ping_pending INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -112,7 +113,15 @@ export function initDatabase() {
     } catch(e) {
         console.error("Demo seed failed", e);
     }
-    
+
+    // Migration: Add ping_pending column if it doesn't exist
+    try {
+        db.exec("ALTER TABLE machines_cache ADD COLUMN ping_pending INTEGER DEFAULT 0;");
+        console.log("🛠️  Migrated: Added ping_pending to machines_cache");
+    } catch (e) {
+        // Column likely already exists
+    }
+
     console.log("NextForge SQLite Cache initialized (with MPP payment tables).");
 }
 

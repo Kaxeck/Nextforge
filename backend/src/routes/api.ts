@@ -22,11 +22,13 @@ router.get('/machines', (req: Request, res: Response) => {
         const processedMachines = machines.map((m: any) => {
             let isOnline = false;
             if (m.last_heartbeat) {
-                // Parse standard ISO date string
                 const hb = new Date(m.last_heartbeat).getTime();
-                if (now - hb < 8000) { // 8 seconds threshold 
+                const diff = now - hb;
+                // Allow up to 25s lag (for 10s polling + network margin) and 5s of future-drift
+                if (diff < 25000 && diff > -5000) { 
                     isOnline = true;
                 }
+                console.log(`📡 UI Check: Machine ${m.id} | Diff: ${diff}ms | Online: ${isOnline}`);
             }
             return { ...m, is_online: isOnline };
         });
@@ -114,6 +116,9 @@ router.post('/relay/buyer_agent/search', async (req: Request, res: Response) => 
         const result = await autonomousMachineSearch(prompt, machines);
         
         if (result.machineId) {
+            // AUTO-PING: Trigger a verification check for the selected machine
+            db.prepare('UPDATE machines_cache SET ping_pending = 1 WHERE id = ?').run(result.machineId);
+            console.log(`🤖 AI Search: Automatically triggered on-demand ping for candidate ${result.machineId}`);
             res.json({ success: true, ...result });
         } else {
             res.status(404).json({ success: false, error: "Buyer Agent could not find a suitable machine on the network." });
@@ -138,6 +143,10 @@ router.get('/relay/machine_agent/evaluate_job', async (req: Request, res: Respon
         }
         // MPP middleware already collected $0.001 USDC via Soroban SAC transfer before reaching here
         const jobResult = await evaluateJobFeasibility(machine, job_description as string);
+
+        // AUTO-PING: Trigger verification check while evaluation is showing
+        db.prepare('UPDATE machines_cache SET ping_pending = 1 WHERE id = ?').run(machine_id);
+        console.log(`🤖 AI Evaluation: Triggered liveness ping for ${machine_id}`);
 
         res.json({
             success: true,
@@ -174,6 +183,19 @@ router.post('/machine/execute', async (req: Request, res: Response) => {
         if (!machine) {
             return res.status(404).json({ success: false, error: "Machine not found" });
         }
+
+        // --- STRICT AI VALIDATION: Only execute if machine is actually online ---
+        const now = Date.now();
+        const hb = machine.last_heartbeat ? new Date(machine.last_heartbeat).getTime() : 0;
+        const diff = now - hb;
+        if (diff > 30000 || !machine.last_heartbeat) { // 30s threshold specifically for execution safety
+            console.log(`❌ AI Execution Aborted: Machine ${machine_id} is offline (Diff: ${diff}ms)`);
+            return res.status(412).json({ 
+                success: false, 
+                error: "AI Agent refused execution: Physical hardware is currently in Standby/Offline mode and did not respond to the latest liveness ping." 
+            });
+        }
+
         // MPP middleware already collected the cycle micropayment before reaching here
         // The payment went to the machine owner's wallet via Soroban SAC transfer
         db.prepare('UPDATE machines_cache SET reputation = MIN(100, reputation + 1) WHERE id = ?')

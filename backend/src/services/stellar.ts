@@ -112,9 +112,8 @@ export async function pollContractEvents() {
     
     let lastCursor: string | undefined = undefined;
 
-    setInterval(async () => {
+    async function poll() {
         try {
-            // Conditionally build request to satisfy strict SDK Typescript rules
             let requestArgs: any = {
                 limit: 10,
                 filters: [{ type: 'contract', contractIds: [CONTRACT_ID] }]
@@ -132,29 +131,21 @@ export async function pollContractEvents() {
             if (response.events && response.events.length > 0) {
                 for (const event of response.events) {
                     console.log(`\n⚡ [SOROBAN EVENT DETECTED]`);
-                    
-                    // Decode topic array to read event signals (e.g. ("machine", "reg"))
                     try {
                          const topic0 = scValToNative(event.topic[0]);
                          console.log(`   - Primary Topic: ${topic0}`);
-                         
-                         if (event.topic.length > 1) {
-                             const topic1 = scValToNative(event.topic[1]);
-                             console.log(`   - Sub Action: ${topic1}`);
-                         }
-                    } catch(e) {
-                         // Fallback logging
-                         console.log("   - Emitted opaque payload");
-                    }
-                    
-                    // In stellar-sdk Soroban RPC, the cursor is the event id
+                    } catch(e) {}
                     lastCursor = (event as any).id;
                 }
             }
         } catch (e) {
-            // Silently absorb polling errors to avoid console flood on timeout
+            // Silence RPC timeouts
         }
-    }, 5000); // Poll every 5 seconds
+        // Schedule next poll ONLY after this one finishes
+        setTimeout(poll, 10000); 
+    }
+
+    poll(); // Start initial poll
 }
 
 /**

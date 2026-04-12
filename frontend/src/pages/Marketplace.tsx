@@ -126,7 +126,7 @@ export function Marketplace() {
     };
 
     fetchMachines();
-    const iv = setInterval(fetchMachines, 5000);
+    const iv = setInterval(fetchMachines, 30000); // Polling every 30s (Lazy Mode)
     return () => clearInterval(iv);
   }, []);
 
@@ -212,9 +212,13 @@ export function Marketplace() {
                       </div>
                       <span className="nf-tag">{m.materials}</span>
                       {isOffline ? (
-                        <span className="nf-tag" style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>❌ Disconnected</span>
+                        <span className="nf-tag" style={{ color: 'var(--color-text-dim)', borderColor: 'var(--color-text-dim)', background: 'rgba(255,255,255,0.03)' }}>
+                          STANDBY
+                        </span>
                       ) : (
-                        <span className="nf-tag" style={{ color: 'var(--color-success)', borderColor: 'var(--color-success)' }}>🟢 Online</span>
+                        <span className="nf-tag" style={{ color: 'var(--color-success)', borderColor: 'var(--color-success)', background: 'rgba(56, 176, 0, 0.05)' }}>
+                          ● LIVE
+                        </span>
                       )}
                       {m.status === 'verified' ? (
                         <span className="nf-tag" style={{ color: 'var(--color-success)', borderColor: 'var(--color-success)' }}>✓ AI Verified</span>
@@ -307,13 +311,26 @@ export function Marketplace() {
                         {showDetail.id} — {showDetail.machine_type}
                       </div>
                       <div
-                        className="mono"
-                        style={{
-                          fontSize: "10px",
-                          color: "var(--color-text-secondary)",
-                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}
                       >
-                        {showDetail.location}
+                         <div
+                          className="nf-indicator"
+                          style={{
+                            width: '6px', height: '6px',
+                            background: showDetail.is_online
+                              ? "var(--color-success)"
+                              : "var(--color-text-secondary)",
+                          }}
+                        ></div>
+                        <span
+                          className="mono"
+                          style={{
+                            fontSize: "10px",
+                            color: showDetail.is_online ? 'var(--color-success)' : "var(--color-text-secondary)",
+                          }}
+                        >
+                          {showDetail.location} {showDetail.is_online ? '· LIVE' : '· STANDBY'}
+                        </span>
                       </div>
                     </div>
                   </div>
