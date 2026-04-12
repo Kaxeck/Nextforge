@@ -823,18 +823,28 @@ export function Marketplace() {
                     // POLL FOR COMPLETION
                     let isCompleted = false;
                     let lastCyclePaid = 0;
+                    let hasStartedExecuting = false;
 
                     while (!isCompleted) {
-                      await new Promise(r => setTimeout(r, 2000));
+                      await new Promise(r => setTimeout(r, 3000));
                       const pollRes = await fetch(`${API_URL}/hardware/status_check?job_id=${jobId}`);
                       const pollJson = await pollRes.json();
                       
                       if (pollJson.status === 'executing') {
-                         setCurrentCycle(prev => {
+                          if (!hasStartedExecuting) {
+                            hasStartedExecuting = true;
+                            setAgentFeed(prev => [{
+                              type: 'decide' as const,
+                              text: `<strong>Hardware Actuation Started</strong> — ${selectedMachine.id} has acknowledged the payload and begun processing.`,
+                              time: 'now'
+                            }, ...prev.slice(0, 49)]);
+                          }
+
+                          setCurrentCycle(prev => {
                             const newCycle = Math.min(prev + 1, targetCycles);
                             
-                            // Let the backend sync complete_cycle to Soroban
-                            if (newCycle > lastCyclePaid) {
+                            // Only trigger payment if we actually advanced a cycle and hasn't exceeded target
+                            if (newCycle > lastCyclePaid && newCycle <= targetCycles) {
                                 lastCyclePaid = newCycle;
                                 fetch(`${API_URL}/contract/complete_cycle`, {
                                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -843,13 +853,14 @@ export function Marketplace() {
 
                                 setAgentFeed(fc => [{
                                   type: 'mpp' as const,
-                                  text: `<strong>Cycle ${newCycle} Paid</strong> — Relay triggered complete_cycle() releasing funds for ${selectedMachine.id}.`,
+                                  text: `<strong>Flow Settlement: Cycle ${newCycle} Paid</strong> — Escrow released funds to ${selectedMachine.id} for work performed.`,
                                   time: 'now'
                                 }, ...fc.slice(0,49)]);
+                                setTotalSpent(ts => ts + priceNum);
+                                return newCycle;
                             }
-                            return newCycle;
-                         });
-                         setTotalSpent(prev => prev + priceNum);
+                            return prev;
+                          });
                       } else if (pollJson.status === 'completed') {
                          isCompleted = true;
                          setCurrentCycle(targetCycles);
@@ -865,10 +876,12 @@ export function Marketplace() {
                     time: 'now'
                   }, ...prev]);
                   setIsStreaming(false);
+                  setActiveOrderMachine(null);
                   return;
                 }
                 
                 setIsStreaming(false);
+                setActiveOrderMachine(null); // This removes the bottom streaming panel
                 setAgentFeed(prev => [{
                   type: 'decide' as const,
                   text: `<strong>Hardware Routine Complete</strong> — physical actuation confirmed. Escrow released.`,
