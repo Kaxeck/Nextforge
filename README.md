@@ -186,7 +186,7 @@ NextForge includes an MCP (Model Context Protocol) server so Claude can act as y
 
 ## License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPLv3)**. See [LICENSE](./LICENSE) for details.
+This project is licensed under the **MIT License**. See [LICENSE](./LICENSE) for details.
 
 ---
 
