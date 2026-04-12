@@ -24,67 +24,78 @@ if (!CONTRACT_ID) {
 }
 
 const server = new rpc.Server(RPC_URL);
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Invokes verify_machine on the Smart Contract. 
  * This is called by the Local Machine Agent if the machine looks legit.
+ * Includes a retry mechanism to handle race conditions with on-chain registration.
  */
 export async function verifyMachineOnChain(machineId: string) {
     if (!ADMIN_SECRET) throw new Error("AI Admin Secret key not configured");
     
     const adminKeypair = Keypair.fromSecret(ADMIN_SECRET);
     const contract = new Contract(CONTRACT_ID);
+    const MAX_ATTEMPTS = 3;
 
-    try {
-        console.log(`📡 Sending verify_machine(${machineId}) to Soroban...`);
-        // We use the simpler Stellar SDK v13 syntax pattern, though full submission is complex, 
-        // we map it out for the MVP.
-        const sourceAccount = await server.getAccount(adminKeypair.publicKey());
-        
-        let tx = new TransactionBuilder(sourceAccount, {
-            fee: "10000",
-            networkPassphrase: NETWORK_PASSPHRASE,
-        })
-        .addOperation(
-            contract.call('verify_machine',
-                nativeToScVal(machineId, { type: 'string' })
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+            console.log(`📡 [Attempt ${attempt}/${MAX_ATTEMPTS}] Sending verify_machine(${machineId}) to Soroban...`);
+            
+            const sourceAccount = await server.getAccount(adminKeypair.publicKey());
+            
+            let tx = new TransactionBuilder(sourceAccount, {
+                fee: "15000",
+                networkPassphrase: NETWORK_PASSPHRASE,
+            })
+            .addOperation(
+                contract.call('verify_machine',
+                    nativeToScVal(machineId, { type: 'string' })
+                )
             )
-        )
-        .setTimeout(30)
-        .build();
+            .setTimeout(30)
+            .build();
 
-        // 1. Simulate the transaction to compute resources/footprint
-        const simulated = await server.simulateTransaction(tx);
-        
-        // Ensure simulation was successful
-        if (!rpc.Api.isSimulationSuccess(simulated)) {
-            const errMessage = (simulated as any).error || (simulated as any).result?.error || "Unknown Soroban panic";
-            throw new Error(`Contract Simulation Failed: ${errMessage}`);
+            // 1. Simulate the transaction
+            const simulated = await server.simulateTransaction(tx);
+            
+            if (!rpc.Api.isSimulationSuccess(simulated)) {
+                const errMessage = (simulated as any).error || (simulated as any).result?.error || "Unknown Soroban panic";
+                throw new Error(`Contract Simulation Failed: ${errMessage}`);
+            }
+
+            // 2. Prepare transaction
+            let preparedTx = await server.prepareTransaction(tx);
+
+            // 3. Sign
+            preparedTx.sign(adminKeypair);
+            
+            // 4. Submit
+            const sendResult = await server.sendTransaction(preparedTx);
+            
+            if (sendResult.status === "ERROR") {
+                throw new Error(`Submission failed. Soroban Error.`);
+            }
+            console.log("✅ Verification tx sent:", sendResult.hash);
+            
+            // Success: Update local DB cache as verified
+            const db = getDb();
+            db.prepare(`UPDATE machines_cache SET status = 'verified' WHERE id = ?`).run(machineId);
+            return true;
+
+        } catch (error) {
+            console.warn(`⚠️ Attempt ${attempt} failed for ${machineId}:`, (error as any).message);
+            
+            if (attempt < MAX_ATTEMPTS) {
+                console.log(`⏳ Waiting 10 seconds for Soroban to sync before next attempt...`);
+                await sleep(10000);
+            } else {
+                console.error("❌ All on-chain verification attempts failed. Machine will remain unverified until chain syncs.");
+                return false;
+            }
         }
-
-        // 2. Prepare transaction with the simulation footprint
-        let preparedTx = await server.prepareTransaction(tx);
-
-        // 3. Sign the fully prepared transaction
-        preparedTx.sign(adminKeypair);
-        
-        // 4. Submit to Soroban
-        const sendResult = await server.sendTransaction(preparedTx);
-        
-        if (sendResult.status === "ERROR") {
-            throw new Error(`Submission failed. Soroban Error.`);
-        }
-        console.log("✅ Verification tx sent:", sendResult.hash);
-        
-        // Update local DB cache
-        const db = getDb();
-        db.prepare(`UPDATE machines_cache SET status = 'verified' WHERE id = ?`).run(machineId);
-        
-        return true;
-    } catch (error) {
-        console.error("❌ Failed to verify on chain:", error);
-        return false;
     }
+    return false;
 }
 
 /**
