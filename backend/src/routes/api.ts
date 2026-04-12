@@ -67,6 +67,22 @@ router.post('/machine/evaluate_pricing', async (req: Request, res: Response) => 
     }
 });
 
+// ===== WEBHOOK: Listen for Frontend Registration Success =====
+router.post('/webhook/machine_registered', async (req: Request, res: Response) => {
+    try {
+        const { machine_id, owner, machine_type, price, location, materials } = req.body;
+        if (!machine_id || !owner) {
+            return res.status(400).json({ success: false, error: "Missing parameters" });
+        }
+        // AI Agent evaluates the newly registered machine and updates cache
+        await handleNewRegistration(machine_id, owner, machine_type, price, location, materials);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ success: false, error: "Webhook evaluation failed" });
+    }
+});
+
 // ===== FREE: Autonomous Agent Search (No MPP charge for purely searching) =====
 router.post('/relay/buyer_agent/search', async (req: Request, res: Response) => {
     try {

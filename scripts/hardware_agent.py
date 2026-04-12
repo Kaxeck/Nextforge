@@ -6,7 +6,7 @@ import sys
 import serial
 import serial.tools.list_ports
 
-NEXTFORGE_URL = "http://localhost:3001"
+NEXTFORGE_URL = "https://nextforge.onrender.com"
 
 def print_header():
     print("="*60)
