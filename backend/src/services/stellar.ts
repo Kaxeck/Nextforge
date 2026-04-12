@@ -229,9 +229,9 @@ export async function startOrderOnChain(orderId: string) {
 
     try {
     let retryCount = 0;
-    while (retryCount < 3) {
+    while (retryCount < 6) {
         try {
-            console.log(`📡 Sending start_order(${orderId}) to Soroban (Attempt ${retryCount + 1})...`);
+            console.log(`📡 Sending start_order(${orderId}) to Soroban (Attempt ${retryCount + 1}/6)...`);
             const sourceAccount = await server.getAccount(adminKeypair.publicKey());
             let tx = new TransactionBuilder(sourceAccount, { fee: "15000", networkPassphrase: NETWORK_PASSPHRASE })
                 .addOperation(contract.call('start_order', nativeToScVal(orderId, { type: 'string' })))
@@ -251,20 +251,16 @@ export async function startOrderOnChain(orderId: string) {
             } else {
                 const errorBody = (simulated as any).error || (simulated as any).result?.error || "Unknown Simulation Error";
                 console.error(`❌ start_order simulation failure [${orderId}]:`, errorBody);
-                // Also log events if available
-                if ((simulated as any).events) {
-                    console.log("📜 Soroban Debug Events:", JSON.stringify((simulated as any).events, null, 2));
-                }
             }
         } catch (innerE) {
             console.warn(`⚠️ start_order attempt ${retryCount + 1} experienced an exception:`, (innerE as any).message);
         }
         
         retryCount++;
-        await new Promise(r => setTimeout(r, 2000)); 
+        await new Promise(r => setTimeout(r, 3000)); 
     }
     
-    throw new Error(`Start Order Simulation Failed after retries for ${orderId}`);
+    throw new Error(`Start Order Simulation Failed after 6 retries for ${orderId}`);
     } catch (e) {
         console.error("❌ Failed to start_order on chain:", e);
         return false;

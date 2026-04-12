@@ -822,10 +822,10 @@ export function Marketplace() {
                         });
                         const startJson = await startRes.json();
                         if (!startJson.success) {
-                            console.warn("⚠️ start_order reported failure, but proceeding to poll anyway...");
+                            throw new Error("Blockchain order activation failed (Stellar Sync Lag). Please try again in 10 seconds.");
                         }
-                    } catch (err) {
-                        console.error("Failed to trigger start_order", err);
+                    } catch (err: any) {
+                        throw new Error(`Order Activation Failure: ${err.message}`);
                     }
 
                     // POLL FOR COMPLETION
