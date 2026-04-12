@@ -108,58 +108,53 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         throw new Error("Agent missing DEPLOYER_SECRET_KEY in environment to sign MPP payment.");
     }
 
-    // REAL STELLAR BLOCKCHAIN TRANSACTION (Soroban Escrow)
+    // REAL STELLAR BLOCKCHAIN TRANSACTION (Soroban Escrow) using centralized service
     let txHash = "";
     try {
+        const orderId = `job-${Date.now()}`;
+        const budgetStroops = machine.price || 10000000;
+        
+        // Use a more robust call through our refined services if possible, 
+        // but since we need the Agent to pay, we'll implement the RETRY logic here too.
+        let retryCount = 0;
         const agentKeypair = Keypair.fromSecret(process.env.DEPLOYER_SECRET_KEY);
         const serverRpc = new rpc.Server('https://soroban-testnet.stellar.org');
-        const contractId = process.env.SOROBAN_CONTRACT_ID;
-        
-        if (!contractId) {
-            throw new Error("SOROBAN_CONTRACT_ID is missing");
-        }
-        
+        const contractId = process.env.SOROBAN_CONTRACT_ID!;
         const contract = new Contract(contractId);
-        const sourceAccount = await serverRpc.getAccount(agentKeypair.publicKey());
-        const orderId = `job-${Date.now()}`;
-        
-        // Build Soroban escrow invocation: create_order(env, order_id, buyer, machine_id, desc, cycles, budget)
-        let tx = new TransactionBuilder(sourceAccount, {
-            fee: "10000",
-            networkPassphrase: Networks.TESTNET,
-        })
-        .addOperation(contract.call('create_order', 
-            nativeToScVal(orderId, { type: 'string' }),
-            nativeToScVal(agentKeypair.publicKey(), { type: 'address' }),
-            nativeToScVal(machine_id, { type: 'string' }),
-            nativeToScVal(job_payload, { type: 'string' }),
-            nativeToScVal(1, { type: 'u32' }),
-            nativeToScVal(machine.price || 10000000, { type: 'i128' }),
-            nativeToScVal(Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), { type: 'u64' }), // Timelock 7 days
-            nativeToScVal(machine.price || 10000000, { type: 'i128' }) // Max spend
-        ))
-        .setTimeout(30)
-        .build();
 
-        // 1. Simulate the transaction
-        const simulated = await serverRpc.simulateTransaction(tx);
-        if (!rpc.Api.isSimulationSuccess(simulated)) {
-            const err = (simulated as any).error || (simulated as any).result?.error;
-            throw new Error(`Escrow simulation failed: ${err}`);
+        while (retryCount < 3) {
+            try {
+                const sourceAccount = await serverRpc.getAccount(agentKeypair.publicKey());
+                let tx = new TransactionBuilder(sourceAccount, { fee: "15000", networkPassphrase: Networks.TESTNET })
+                    .addOperation(contract.call('create_order', 
+                        nativeToScVal(orderId, { type: 'string' }),
+                        nativeToScVal(agentKeypair.publicKey(), { type: 'address' }),
+                        nativeToScVal(machine_id, { type: 'string' }),
+                        nativeToScVal(job_payload, { type: 'string' }),
+                        nativeToScVal(1, { type: 'u32' }),
+                        nativeToScVal(budgetStroops, { type: 'i128' }),
+                        nativeToScVal(Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), { type: 'u64' }),
+                        nativeToScVal(budgetStroops, { type: 'i128' })
+                    )).setTimeout(30).build();
+
+                const simulated = await serverRpc.simulateTransaction(tx);
+                if (rpc.Api.isSimulationSuccess(simulated)) {
+                    let preparedTx = await serverRpc.prepareTransaction(tx);
+                    preparedTx.sign(agentKeypair);
+                    const sendResult = await serverRpc.sendTransaction(preparedTx);
+                    if (sendResult.status !== "ERROR") {
+                        txHash = sendResult.hash;
+                        break; 
+                    }
+                }
+            } catch (innerE) {
+                console.warn(`MCP Escrow attempt ${retryCount + 1} failed, retrying...`);
+            }
+            retryCount++;
+            await new Promise(r => setTimeout(r, 2000));
         }
 
-        // 2. Prepare transaction with footprints
-        let preparedTx = await serverRpc.prepareTransaction(tx);
-
-        // 3. Sign the fully prepared transaction
-        preparedTx.sign(agentKeypair);
-        
-        // 4. Send to Soroban
-        const sendResult = await serverRpc.sendTransaction(preparedTx);
-        if (sendResult.status === "ERROR") {
-           throw new Error("Stellar Testnet rejected the escrow transaction.");
-        }
-        txHash = sendResult.hash;
+        if (!txHash) throw new Error("Stellar Testnet rejected the escrow transaction after retries.");
 
     } catch (e: any) {
          return {

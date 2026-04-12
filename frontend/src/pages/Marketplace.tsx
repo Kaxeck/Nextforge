@@ -814,11 +814,19 @@ export function Marketplace() {
                       time: 'now'
                     }, ...prev.slice(0, 49)]);
 
-                    // Trigger start_order to release 50% deposit
-                    fetch(`${API_URL}/contract/start_order`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ order_id: orderId })
-                    }).catch(console.error);
+                    // FORCE AWAIT start_order so we don't try to complete cycles before the order has officially started on-chain
+                    try {
+                        const startRes = await fetch(`${API_URL}/contract/start_order`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ order_id: orderId })
+                        });
+                        const startJson = await startRes.json();
+                        if (!startJson.success) {
+                            console.warn("⚠️ start_order reported failure, but proceeding to poll anyway...");
+                        }
+                    } catch (err) {
+                        console.error("Failed to trigger start_order", err);
+                    }
 
                     // POLL FOR COMPLETION
                     let isCompleted = false;
