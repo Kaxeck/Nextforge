@@ -279,27 +279,41 @@ export async function completeCycleOnChain(orderId: string) {
     const adminKeypair = Keypair.fromSecret(ADMIN_SECRET);
     const contract = new Contract(CONTRACT_ID);
 
-    try {
-        console.log(`📡 Sending complete_cycle(${orderId}) to Soroban...`);
-        const sourceAccount = await server.getAccount(adminKeypair.publicKey());
-        let tx = new TransactionBuilder(sourceAccount, { fee: "15000", networkPassphrase: NETWORK_PASSPHRASE })
-            .addOperation(contract.call('complete_cycle', nativeToScVal(orderId, { type: 'string' })))
-            .setTimeout(30).build();
+    let retryCount = 0;
+    while (retryCount < 3) {
+        try {
+            console.log(`📡 Sending complete_cycle(${orderId}) to Soroban (Attempt ${retryCount + 1})...`);
+            const sourceAccount = await server.getAccount(adminKeypair.publicKey());
+            let tx = new TransactionBuilder(sourceAccount, { fee: "15000", networkPassphrase: NETWORK_PASSPHRASE })
+                .addOperation(contract.call('complete_cycle', nativeToScVal(orderId, { type: 'string' })))
+                .setTimeout(30).build();
 
-        const simulated = await server.simulateTransaction(tx);
-        if (!rpc.Api.isSimulationSuccess(simulated)) {
-            throw new Error(`Complete Cycle Simulation Failed`);
+            const simulated = await server.simulateTransaction(tx);
+            if (rpc.Api.isSimulationSuccess(simulated)) {
+                let preparedTx = await server.prepareTransaction(tx);
+                preparedTx.sign(adminKeypair);
+                const sendResult = await server.sendTransaction(preparedTx);
+                
+                if (sendResult.hash) {
+                    console.log(`✅ complete_cycle(${orderId}) successful! Tx: ${sendResult.hash}`);
+                    return true;
+                }
+                if (sendResult.status === "ERROR") throw new Error(`Submission failed.`);
+            } else {
+                const errorBody = (simulated as any).error || (simulated as any).result?.error || "Unknown Simulation Error";
+                console.error(`❌ complete_cycle simulation failure [${orderId}]:`, errorBody);
+                if ((simulated as any).events) {
+                    console.log("📜 Soroban Debug Events:", JSON.stringify((simulated as any).events, null, 2));
+                }
+            }
+        } catch (innerE) {
+            console.warn(`⚠️ complete_cycle attempt ${retryCount + 1} experienced an exception:`, (innerE as any).message);
         }
-
-        let preparedTx = await server.prepareTransaction(tx);
-        preparedTx.sign(adminKeypair);
-        const sendResult = await server.sendTransaction(preparedTx);
         
-        if (sendResult.status === "ERROR") throw new Error(`Submission failed.`);
-        return true;
-    } catch (e) {
-        console.error("❌ Failed to complete_cycle on chain:", e);
-        return false;
+        retryCount++;
+        await new Promise(r => setTimeout(r, 2000)); 
     }
+    
+    throw new Error(`Complete Cycle Simulation Failed after retries for ${orderId}`);
 }
 
