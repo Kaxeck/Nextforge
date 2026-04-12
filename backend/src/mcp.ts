@@ -5,7 +5,7 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { getDb } from "./services/database";
-import { Keypair, rpc, TransactionBuilder, Networks, Operation, Asset } from "@stellar/stellar-sdk";
+import { Keypair, rpc, TransactionBuilder, Networks, Operation, Asset, Contract, nativeToScVal } from "@stellar/stellar-sdk";
 import dotenv from "dotenv";
 
 dotenv.config({ path: '../.env' });
@@ -40,7 +40,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "nextforge_negotiate_and_pay",
         description:
-          "Contact a specific Machine Agent on NextForge and negotiate processing. Expects an HTTP 402 Payment Required response internally, which this tool will automatically settle using the agent's wallet context.",
+          "Contact a specific Machine Agent on NextForge and negotiate processing. Uses the MPP (Machine Payments Protocol) to settle micropayments via Soroban escrow on Stellar Testnet.",
         inputSchema: {
           type: "object",
           properties: {
@@ -87,41 +87,63 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (!process.env.DEPLOYER_SECRET_KEY) {
-        throw new Error("Agent missing DEPLOYER_SECRET_KEY in environment to sign x402 payment.");
+        throw new Error("Agent missing DEPLOYER_SECRET_KEY in environment to sign MPP payment.");
     }
 
-    // REAL STELLAR BLOCKCHAIN TRANSACTION
+    // REAL STELLAR BLOCKCHAIN TRANSACTION (Soroban Escrow)
     let txHash = "";
     try {
         const agentKeypair = Keypair.fromSecret(process.env.DEPLOYER_SECRET_KEY);
         const serverRpc = new rpc.Server('https://soroban-testnet.stellar.org');
+        const contractId = process.env.SOROBAN_CONTRACT_ID;
         
+        if (!contractId) {
+            throw new Error("SOROBAN_CONTRACT_ID is missing");
+        }
+        
+        const contract = new Contract(contractId);
         const sourceAccount = await serverRpc.getAccount(agentKeypair.publicKey());
+        const orderId = `job-${Date.now()}`;
         
-        // Build base XLM payment mimicking x402 micro-settlement
+        // Build Soroban escrow invocation: create_order(env, order_id, buyer, machine_id, desc, cycles, budget)
         let tx = new TransactionBuilder(sourceAccount, {
             fee: "10000",
             networkPassphrase: Networks.TESTNET,
         })
-        .addOperation(Operation.payment({
-            destination: machine.owner, // Pay the vendor directly!
-            asset: Asset.native(), // Native XLM 
-            amount: "0.001"
-        }))
+        .addOperation(contract.call('create_order', 
+            nativeToScVal(orderId, { type: 'string' }),
+            nativeToScVal(agentKeypair.publicKey(), { type: 'address' }),
+            nativeToScVal(machine_id, { type: 'string' }),
+            nativeToScVal(job_payload, { type: 'string' }),
+            nativeToScVal(1, { type: 'u32' }),
+            nativeToScVal(machine.price || 10000000, { type: 'i128' })
+        ))
         .setTimeout(30)
         .build();
 
-        tx.sign(agentKeypair);
+        // 1. Simulate the transaction
+        const simulated = await serverRpc.simulateTransaction(tx);
+        if (!rpc.Api.isSimulationSuccess(simulated)) {
+            const err = (simulated as any).error || (simulated as any).result?.error;
+            throw new Error(`Escrow simulation failed: ${err}`);
+        }
+
+        // 2. Prepare transaction with footprints
+        let preparedTx = await serverRpc.prepareTransaction(tx);
+
+        // 3. Sign the fully prepared transaction
+        preparedTx.sign(agentKeypair);
         
-        const sendResult = await serverRpc.sendTransaction(tx);
+        // 4. Send to Soroban
+        const sendResult = await serverRpc.sendTransaction(preparedTx);
         if (sendResult.status === "ERROR") {
-           throw new Error("Stellar Testnet rejected transaction.");
+           throw new Error("Stellar Testnet rejected the escrow transaction.");
         }
         txHash = sendResult.hash;
 
     } catch (e: any) {
          return {
-            content: [{ type: "text", text: `x402 Payment failed. Transaction reverted: ${e.message}` }],
+            content: [{ type: "text", text: `MPP Payment failed. Transaction reverted: ${e.message}` }],
             isError: true,
          };
     }
@@ -138,10 +160,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const simulationLog = `
 > Sending payload to ${machine_id}...
 > HTTP 402 PAYMENT REQUIRED detected.
-> Server requests $0.001 USDC via x402 Protocol.
-> Authorizing micro-payment via Stellar Testnet (Real SDK Signature).
+> Server requests $0.001 USDC via MPP (Machine Payments Protocol).
+> Authorizing micro-payment via Escrow Contract lock on Stellar Testnet.
 > Tx Hash: ${txHash}
-> Payment mathematically secured.
+> Escrow mathematically secured via Soroban footprint.
 
 Machine Agent (${machine_id}) Response: 
 "PAYLOAD RECEIVED AND APPROVED. Escrow logic successfully bonded via Soroban. Hardware parameters initialized for payload: '${job_payload}'. Job ID assigned: ${data.job_id}."

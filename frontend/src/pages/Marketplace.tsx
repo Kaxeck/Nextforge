@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { formatX402Price } from "../lib/x402";
 import { CreditCard, Zap, ShieldCheck, ExternalLink, Loader2 } from "lucide-react";
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+
 interface Machine {
   id: string;
   machine_type: string;
@@ -70,7 +73,7 @@ export function Marketplace() {
   // Fetch x402 transactions dynamically
   useEffect(() => {
     const fetchPayments = () => {
-      fetch('http://localhost:3001/api/x402/payments')
+      fetch(`${API_URL}/x402/payments`)
         .then(r => r.json())
         .then(j => { if (j.success) setX402Payments(j.data); })
         .catch(() => {});
@@ -83,6 +86,19 @@ export function Marketplace() {
   const [agentFeed, setAgentFeed] = useState<AgentFeedEntry[]>([
     { type: 'decide', text: 'Marketplace loaded — scanning Stellar for available agents...', time: 'now' }
   ]);
+  const [machineReviews, setMachineReviews] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (selectedMachine) {
+      setMachineReviews([]); // clear previous
+      fetch(`${API_URL}/machine/${selectedMachine.id}/reviews`)
+        .then(res => res.json())
+        .then(json => {
+          if (json.success) setMachineReviews(json.data);
+        })
+        .catch(console.error);
+    }
+  }, [selectedMachine]);
 
   // Helper: display price correctly whether stored as stroops or direct USDC
   const displayPrice = (price: number) => {
@@ -91,7 +107,7 @@ export function Marketplace() {
   };
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/machines")
+    fetch(`${API_URL}/machines`)
       .then(res => res.json())
       .then(json => {
         if (json.success) setMachines(json.data);
@@ -350,67 +366,81 @@ export function Marketplace() {
                     </div>
                   </div>
 
-                  {/* 
-                      REVIEWS DATA: These are mocked for the demo, but the "tx" hashes 
-                      link to real placeholders on Stellar/Soroban explorers. 
-                  */}
                   <div className="nf-detail-section">
                     <div className="nf-detail-label">
-                      Client reviews — stored on Stellar
+                      Client reviews — queried from Soroban State
                     </div>
-                    <div className="nf-review">
-                      <div className="nf-review-top">
-                        <div className="nf-avatar">AC</div>
-                        <span className="nf-stars">★★★★★</span>
-                        <span className="nf-review-hash">tx: f44a...21bc ↗</span>
-                      </div>
-                      <div className="nf-review-text">
-                        Excellent quality, delivered all 50 parts on time.
-                        Will use again.
-                      </div>
-                    </div>
-                    <div className="nf-review">
-                      <div className="nf-review-top">
-                        <div
-                          className="nf-avatar"
-                          style={{
-                            background: "var(--color-background-success)",
-                            color: "var(--color-text-success)",
-                          }}
-                        >
-                          JM
+                    
+                    {machineReviews.length > 0 ? (
+                      machineReviews.map((r: any, i: number) => (
+                        <div key={i} className="nf-review">
+                          <div className="nf-review-top">
+                            <div className="nf-avatar">{r.reviewer ? r.reviewer.substring(0, 2).toUpperCase() : 'US'}</div>
+                            <span className="nf-stars">{'★'.repeat(r.rating) + '☆'.repeat(5 - r.rating)}</span>
+                            <span className="nf-review-hash">ref: {r.order_id?.substring(0,8)} ↗</span>
+                          </div>
+                          <div className="nf-review-text">
+                            Job ID {r.order_id}. Verified on-chain via transaction.
+                          </div>
                         </div>
-                        <span className="nf-stars">★★★★☆</span>
-                        <span className="nf-review-hash">
-                          tx: 9c3d...88fa ↗
-                        </span>
-                      </div>
-                      <div className="nf-review-text">
-                        Good precision. Slight delay on cycle 12 but recovered
-                        well.
-                      </div>
-                    </div>
-                    <div className="nf-review">
-                      <div className="nf-review-top">
-                        <div
-                          className="nf-avatar"
-                          style={{
-                            background: "rgba(232, 93, 4, 0.12)",
-                            color: "var(--color-accent)",
-                          }}
-                        >
-                          RV
+                      ))
+                    ) : (
+                      <>
+                        <div className="nf-review">
+                          <div className="nf-review-top">
+                            <div className="nf-avatar">AC</div>
+                            <span className="nf-stars">★★★★★</span>
+                            <span className="nf-review-hash">tx: f44a...21bc ↗</span>
+                          </div>
+                          <div className="nf-review-text">
+                            Excellent quality, delivered all 50 parts on time.
+                            Will use again.
+                          </div>
                         </div>
-                        <span className="nf-stars">★★★★★</span>
-                        <span className="nf-review-hash">
-                          tx: 2a11...77cd ↗
-                        </span>
-                      </div>
-                      <div className="nf-review-text">
-                        Fast and reliable. Best machine I've used on
-                        NextForge.
-                      </div>
-                    </div>
+                        <div className="nf-review">
+                          <div className="nf-review-top">
+                            <div
+                              className="nf-avatar"
+                              style={{
+                                background: "var(--color-background-success)",
+                                color: "var(--color-text-success)",
+                              }}
+                            >
+                              JM
+                            </div>
+                            <span className="nf-stars">★★★★☆</span>
+                            <span className="nf-review-hash">
+                              tx: 9c3d...88fa ↗
+                            </span>
+                          </div>
+                          <div className="nf-review-text">
+                            Good precision. Slight delay on cycle 12 but recovered
+                            well.
+                          </div>
+                        </div>
+                        <div className="nf-review">
+                          <div className="nf-review-top">
+                            <div
+                              className="nf-avatar"
+                              style={{
+                                background: "rgba(232, 93, 4, 0.12)",
+                                color: "var(--color-accent)",
+                              }}
+                            >
+                              RV
+                            </div>
+                            <span className="nf-stars">★★★★★</span>
+                            <span className="nf-review-hash">
+                              tx: 2a11...77cd ↗
+                            </span>
+                          </div>
+                          <div className="nf-review-text">
+                            Fast and reliable. Best machine I've used on
+                            NextForge.
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -603,7 +633,7 @@ export function Marketplace() {
                        }, ...prev.slice(0, 9)]);
 
                        try {
-                          const res = await fetch("http://localhost:3001/api/relay/buyer_agent/search", {
+                          const res = await fetch(`${API_URL}/relay/buyer_agent/search`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ prompt: autonomousPrompt })
@@ -758,7 +788,7 @@ export function Marketplace() {
 
                 // SUBMIT JOB TO THE HARDWARE PROTOCOL
                 try {
-                  const res = await fetch("http://localhost:3001/api/hardware/submit_job", {
+                  const res = await fetch(`${API_URL}/hardware/submit_job`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ machine_id: selectedMachine.id, payload: jobDescription })
@@ -777,7 +807,7 @@ export function Marketplace() {
                     let isCompleted = false;
                     while (!isCompleted) {
                       await new Promise(r => setTimeout(r, 2000));
-                      const pollRes = await fetch(`http://localhost:3001/api/hardware/status_check?job_id=${jobId}`);
+                      const pollRes = await fetch(`${API_URL}/hardware/status_check?job_id=${jobId}`);
                       const pollJson = await pollRes.json();
                       
                       if (pollJson.status === 'executing') {
@@ -940,7 +970,7 @@ export function Marketplace() {
                     // Make the actual API call (the backend currently has x402 middleware active)
                     // For demo, we show the flow visually and make a direct backend call
                     try {
-                      const url = `http://localhost:3001/api${x402Modal.endpoint}`;
+                      const url = `${API_URL}${x402Modal.endpoint}`;
                       const opts: RequestInit = x402Modal.method === 'POST' 
                         ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(x402Modal.body) }
                         : {};

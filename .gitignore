@@ -127,3 +127,9 @@ backend/build/
 .vscode/
 *.swp
 *.swo
+
+# SQLite DB files
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+

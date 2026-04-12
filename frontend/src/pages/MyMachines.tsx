@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { registerMachineOnChain, connectFreighter } from "../lib/stellar";
 import { ShieldCheck, Cpu, Wallet, CheckCircle2, TrendingUp, Award, Settings2, Activity, Info, ExternalLink, Pencil, CreditCard, Loader2 } from "lucide-react";
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+
 interface Machine {
   id: string;
   machine_type: string;
@@ -44,7 +47,7 @@ export function MyMachines() {
 
   const fetchMyMachines = (address: string) => {
     setLoading(true);
-    fetch(`http://localhost:3001/api/machines?owner=${address}`)
+    fetch(`${API_URL}/machines?owner=${address}`)
       .then(res => res.json())
       .then(json => {
         if (json.success) setMachines(json.data);
@@ -69,12 +72,12 @@ export function MyMachines() {
 
   // Fetch x402 payment history
   useEffect(() => {
-    fetch('http://localhost:3001/api/x402/payments')
+    fetch(`${API_URL}/x402/payments`)
       .then(r => r.json())
       .then(j => { if (j.success) setX402Payments(j.data); })
       .catch(() => {});
     const iv = setInterval(() => {
-      fetch('http://localhost:3001/api/x402/payments')
+      fetch(`${API_URL}/x402/payments`)
         .then(r => r.json())
         .then(j => { if (j.success) setX402Payments(j.data); })
         .catch(() => {});
@@ -120,7 +123,7 @@ export function MyMachines() {
 
       // 3. Deploy Machine Agent / Webhook to confirm the chain event (Because we aren't running an indexer locally)
       // The onboard agent uses Gemini to check if it's suspicious and verify it.
-      const res = await fetch("http://localhost:3001/api/webhook/machine_registered", {
+      const res = await fetch(`${API_URL}/webhook/machine_registered`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -481,7 +484,7 @@ export function MyMachines() {
                   setEditingSubmit(true);
                   try {
                     // First, attempt the x402-gated endpoint
-                    const res = await fetch("http://localhost:3001/api/machine/evaluate_pricing", {
+                    const res = await fetch(`${API_URL}/machine/evaluate_pricing`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({

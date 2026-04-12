@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../services/database';
 import { handleNewRegistration, evaluatePriceUpdate, evaluateJobFeasibility, autonomousMachineSearch } from '../services/agent_relay';
+import { getReviewsFromChain } from '../services/stellar';
 
 const router = Router();
 
@@ -19,6 +20,16 @@ router.get('/machines', (req: Request, res: Response) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, error: "Database error" });
+    }
+});
+
+router.get('/machine/:id/reviews', async (req: Request, res: Response) => {
+    try {
+        const reviews = await getReviewsFromChain(req.params.id as string);
+        res.json({ success: true, data: reviews });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, error: "Chain query error" });
     }
 });
 

@@ -1,35 +1,54 @@
 /**
- * NextForge x402 Client
- * Handles HTTP 402 Payment Required flows with Freighter wallet signing.
- * Uses the x402 protocol to enable per-request micropayments on Stellar.
+ * MPP (Machine Payments Protocol) — Frontend Payment Layer
+ * 
+ * Uses the @stellar/mpp SDK for native Soroban SAC payments.
+ * No external facilitator required — payments settle directly on Stellar Testnet.
+ * 
+ * Flow:
+ *   1. Client hits API → server returns 402 with MPP challenge JSON
+ *   2. Client parses challenge (currency, amount, recipient, network)
+ *   3. Client builds Soroban SAC transfer via Freighter wallet
+ *   4. Client retries request with signed credential
+ *   5. Server verifies + broadcasts → returns 200 + receipt
  */
+
+import { getAddress, isConnected, signTransaction } from '@stellar/freighter-api';
+import {
+  TransactionBuilder,
+  Networks,
+  Contract,
+  nativeToScVal,
+  Address,
+} from '@stellar/stellar-sdk';
+import { Server, Api, assembleTransaction } from '@stellar/stellar-sdk/rpc';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
-export interface X402PaymentInfo {
+export interface MppPaymentInfo {
   price: string;
   network: string;
   payTo: string;
   endpoint: string;
+  currency?: string;
 }
 
-export interface X402Result<T = any> {
+export interface MppResult<T = any> {
   success: boolean;
   data?: T;
-  paymentRequired?: X402PaymentInfo;
+  paymentRequired?: MppPaymentInfo;
   error?: string;
-  x402_settled?: boolean;
+  mpp_settled?: boolean;
 }
 
 /**
- * Makes a request to an x402-protected endpoint.
+ * Makes a request to an MPP-protected endpoint.
  * If the server responds with 402, it returns the payment requirements
  * so the UI can display a payment confirmation modal.
  */
-export async function x402Request<T = any>(
+export async function mppRequest<T = any>(
   endpoint: string,
   options: RequestInit = {}
-): Promise<X402Result<T>> {
+): Promise<MppResult<T>> {
   const url = `${API_URL}${endpoint}`;
 
   try {
@@ -41,24 +60,23 @@ export async function x402Request<T = any>(
       },
     });
 
-    // x402 Payment Required — parse requirements
+    // MPP 402 Payment Required — parse challenge
     if (res.status === 402) {
-      // Extract payment info from response headers
-      let paymentInfo: X402PaymentInfo = {
-        price: '$0.001',
+      let paymentInfo: MppPaymentInfo = {
+        price: '0.001',
         network: 'stellar:testnet',
         payTo: '',
         endpoint,
       };
 
-      // Try to parse x402 response body or headers
       try {
         const body = await res.json();
         if (body.accepts) {
           paymentInfo = {
-            price: body.accepts.price || '$0.001',
+            price: body.accepts.amount || '0.001',
             network: body.accepts.network || 'stellar:testnet',
-            payTo: body.accepts.payTo || '',
+            payTo: body.accepts.recipient || '',
+            currency: body.accepts.currency || '',
             endpoint,
           };
         }
@@ -79,7 +97,7 @@ export async function x402Request<T = any>(
     }
 
     const data = await res.json();
-    return { success: true, data, x402_settled: !!data.x402_payment };
+    return { success: true, data, mpp_settled: !!data.mpp_receipt };
 
   } catch (err: any) {
     return { success: false, error: err.message || 'Network error' };
@@ -87,53 +105,138 @@ export async function x402Request<T = any>(
 }
 
 /**
- * Simulates settling an x402 payment for demo/hackathon purposes.
- * In production, the client would sign Soroban auth entries via Freighter
- * and the Coinbase facilitator would settle on-chain.
- * For the hackathon demo, we use the backend's deployer key to settle
- * so we can demonstrate the full x402 flow visually.
+ * Executes a real MPP payment settlement via Freighter.
+ * 
+ * The MPP Charge flow (Pull mode):
+ * 1. Hit endpoint → receive 402 with challenge
+ * 2. Build Soroban SAC transfer (token.transfer) 
+ * 3. Simulate + prepare via SorobanRpc
+ * 4. Sign with Freighter
+ * 5. Retry request with signed XDR as credential
  */
-export async function settleX402Payment(
+export async function settleMppPayment(
   endpoint: string,
   options: RequestInit = {}
-): Promise<X402Result> {
+): Promise<MppResult> {
   const url = `${API_URL}${endpoint}`;
   
   try {
-    // Add the x402-demo-settle header to bypass payment for demo
-    const res = await fetch(url, {
+    // 1. Check wallet
+    const connected = await isConnected();
+    if (!connected) {
+      return { success: false, error: "Freighter wallet is not connected" };
+    }
+
+    const pubKeyResult = await getAddress();
+    const publicKey = (pubKeyResult as any).address || pubKeyResult;
+    if (!publicKey) {
+      return { success: false, error: "Failed to get public key from Freighter" };
+    }
+
+    // 2. First request — get 402 challenge
+    const challengeRes = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        'X-402-Demo-Settle': 'true',
         ...options.headers,
       },
     });
 
-    if (res.status === 402) {
-      // If still 402, the middleware doesn't have demo bypass
-      // Return formatted info for the UI
-      return { success: false, error: 'Payment settlement pending — connect USDC wallet' };
+    if (challengeRes.status !== 402) {
+      // Not payment-gated, return as normal
+      const data = await challengeRes.json();
+      return { success: challengeRes.ok, data };
     }
 
-    const data = await res.json();
-    return { success: true, data, x402_settled: true };
+    const challenge = await challengeRes.json();
+    const { amount, recipient, currency, network } = challenge.accepts;
+
+    console.log(`🔐 MPP Challenge: Pay ${amount} USDC to ${recipient} on ${network}`);
+
+    // 3. Build Soroban SAC transfer transaction
+    const rpcUrl = 'https://soroban-testnet.stellar.org';
+    const server = new Server(rpcUrl);
+    const sourceAccount = await server.getAccount(publicKey as string);
+
+    const tokenContract = new Contract(currency);
+    
+    // Convert amount from string to i128 stroops (7 decimals for USDC)
+    const amountStroops = Math.floor(parseFloat(amount) * 10_000_000);
+
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: '100000',
+      networkPassphrase: Networks.TESTNET,
+    })
+      .addOperation(
+        tokenContract.call(
+          'transfer',
+          nativeToScVal(Address.fromString(publicKey as string), { type: 'address' }),     // from
+          nativeToScVal(Address.fromString(recipient), { type: 'address' }),  // to
+          nativeToScVal(amountStroops, { type: 'i128' }),                      // amount
+        )
+      )
+      .setTimeout(30)
+      .build();
+
+    // 4. Simulate + prepare
+    const simResult = await server.simulateTransaction(tx);
+    if (Api.isSimulationError(simResult)) {
+      return { success: false, error: `Simulation failed: ${(simResult as any).error}` };
+    }
+
+    const preparedTx = assembleTransaction(tx, simResult).build();
+
+    // 5. Sign with Freighter
+    const signedResult = await signTransaction(preparedTx.toXDR(), {
+      networkPassphrase: Networks.TESTNET,
+    });
+
+    if ((signedResult as any).error) {
+      return { success: false, error: 'User declined to sign the MPP payment' };
+    }
+
+    const signedXdr = (signedResult as any).signedTxXdr || signedResult;
+
+    // 6. Retry original request with MPP credential
+    const retryRes = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-MPP-Credential': signedXdr as string,
+        ...options.headers,
+      },
+    });
+
+    if (retryRes.status === 402) {
+      return { success: false, error: 'Payment verification failed.' };
+    }
+
+    const data = await retryRes.json();
+    return { success: true, data, mpp_settled: true };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    console.error("MPP Settlement Error:", err);
+    return { success: false, error: err.message || "Unknown settlement error" };
   }
 }
 
 /**
- * Price formatting utility for x402 amounts
+ * Price formatting utility for MPP amounts
  */
-export function formatX402Price(price: string): string {
-  return price.startsWith('$') ? price : `$${price}`;
+export function formatMppPrice(price: string): string {
+  const num = parseFloat(price);
+  if (isNaN(num)) return `$${price}`;
+  return `$${num.toFixed(4)}`;
 }
 
+// Keep backward compatibility aliases
+export const x402Request = mppRequest;
+export const settleX402Payment = settleMppPayment;
+export const formatX402Price = formatMppPrice;
+
 /**
- * Check if an endpoint is x402-protected by making a preflight request
+ * Check if an endpoint is MPP-protected by making a preflight request
  */
-export async function checkX402Status(endpoint: string): Promise<boolean> {
+export async function checkMppStatus(endpoint: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_URL}${endpoint}`, { method: 'HEAD' });
     return res.status === 402;

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+
 /**
  * Analytics Component
  * Provides a comprehensive overview of network activity, economic throughput,
@@ -10,11 +13,11 @@ export function Analytics() {
   const [payments, setPayments] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/machines')
+    fetch(`${API_URL}/machines`)
       .then(res => res.json())
       .then(json => setMachines(json.data || []));
 
-    fetch('http://localhost:3001/api/x402/payments?limit=50')
+    fetch(`${API_URL}/x402/payments?limit=50`)
       .then(res => res.json())
       .then(json => setPayments(json.data || []));
   }, []);
@@ -43,7 +46,7 @@ export function Analytics() {
           <div className="nf-metric-sub">live via streaming</div>
         </div>
         <div className="nf-metric">
-          <div className="nf-metric-label">x402 Payments</div>
+          <div className="nf-metric-label">MPP Payments</div>
           <div className="nf-metric-value">{payments.length}</div>
           <div className="nf-metric-sub" style={{ color: 'var(--color-text-secondary)' }}>tracked on-chain</div>
         </div>
@@ -243,7 +246,7 @@ export function Analytics() {
               <div className="nf-feed-row" key={i}>
                 <div className="nf-feed-dot" style={{ background: p.payment_type === 'cycle_execution' ? 'var(--color-success)' : p.payment_type === 'job_verification' ? 'var(--color-accent)' : 'var(--color-purple)' }}></div>
                 <div className="nf-feed-text">
-                  <strong style={{ textTransform: 'capitalize' }}>{p.payment_type.replace(/_/g, ' ')}</strong> — {p.machine_id} received {p.amount} x402
+                  <strong style={{ textTransform: 'capitalize' }}>{p.payment_type.replace(/_/g, ' ')}</strong> — {p.machine_id} received {p.amount} MPP
                 </div>
                 <div className="nf-feed-time">{new Date(p.created_at).toLocaleTimeString()}</div>
               </div>
