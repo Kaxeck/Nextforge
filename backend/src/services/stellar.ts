@@ -10,7 +10,7 @@ import {
     Address
 } from '@stellar/stellar-sdk';
 import dotenv from 'dotenv';
-import { getDb } from './database';
+import { getDb } from './database.js';
 
 dotenv.config({ path: '../.env' }); // Adjust relative path as needed
 

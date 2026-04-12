@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { initDatabase, getDb } from './services/database';
-import { pollContractEvents } from './services/stellar';
-import apiRoutes from './routes/api';
-import hardwareRoutes from './routes/hardware';
+import { initDatabase, getDb } from './services/database.js';
+import { pollContractEvents } from './services/stellar.js';
+import apiRoutes from './routes/api.js';
+import hardwareRoutes from './routes/hardware.js';
 import {
   Keypair,
   TransactionBuilder,

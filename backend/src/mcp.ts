@@ -4,7 +4,7 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { getDb } from "./services/database";
+import { getDb } from "./services/database.js";
 import { Keypair, rpc, TransactionBuilder, Networks, Operation, Asset, Contract, nativeToScVal } from "@stellar/stellar-sdk";
 import dotenv from "dotenv";
 

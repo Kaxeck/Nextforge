@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { getDb } from '../services/database';
-import { handleNewRegistration, evaluatePriceUpdate, evaluateJobFeasibility, autonomousMachineSearch } from '../services/agent_relay';
-import { getReviewsFromChain, startOrderOnChain, completeCycleOnChain } from '../services/stellar';
+import { getDb } from '../services/database.js';
+import { handleNewRegistration, evaluatePriceUpdate, evaluateJobFeasibility, autonomousMachineSearch } from '../services/agent_relay.js';
+import { getReviewsFromChain, startOrderOnChain, completeCycleOnChain } from '../services/stellar.js';
 
 const router = Router();
 

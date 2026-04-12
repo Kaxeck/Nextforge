@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
-import { getDb } from './database';
-import { verifyMachineOnChain } from './stellar';
+import { getDb } from './database.js';
+import { verifyMachineOnChain } from './stellar.js';
 
 dotenv.config();
 
