@@ -30,7 +30,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "nextforge_discover_machines",
         description:
-          "Scan the global NextForge Protocol for available manufacturing nodes (hardware limits, price per cycle, etc.). Call this to understand available hardware before attempting a negotiation.",
+          "Scan the global NextForge Protocol for available manufacturing nodes (hardware limits, price per cycle, etc.). Call this to understand available hardware before attempting a negotiation. CRITICAL: You must carefully check the 'power' field and NEVER attempt to negotiate with a machine that is OFFLINE_DISCONNECTED.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -59,7 +59,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (request.params.name === "nextforge_discover_machines") {
     try {
       const db = getDb();
-      const machines = db.prepare('SELECT id, machine_type, reputation, price, materials, location, status FROM machines_cache').all();
+      const rawMachines = db.prepare('SELECT id, machine_type, reputation, price, materials, location, status, last_heartbeat FROM machines_cache').all();
+      const now = Date.now();
+      const machines = rawMachines.map((m: any) => {
+          const isOffline = m.last_heartbeat ? (now - new Date(m.last_heartbeat + 'Z').getTime() > 60000) : true;
+          return {
+              id: m.id,
+              type: m.machine_type,
+              reputation: m.reputation,
+              price: m.price,
+              materials: m.materials,
+              status: m.status,
+              power: isOffline ? 'OFFLINE_DISCONNECTED' : 'ONLINE_ACTIVE'
+          };
+      });
       return {
         content: [
           {
