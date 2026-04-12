@@ -1,8 +1,8 @@
 # NextForge 🏭🤖
 
-> **Stellar Hacks: Agents on Stellar — x402 + Stripe MPP Hackathon Submission**
+> **Stellar Hacks: Agents on Stellar — Machine Payments Protocol (MPP) Hackathon Submission**
 
-**A decentralized protocol where AI agents autonomously discover, negotiate, and pay physical machines for manufacturing services — powered by [MPP (Machine Payments Protocol)](https://mpp.dev) + Soroban smart contracts on Stellar.**
+**A decentralized protocol where AI agents autonomously discover, negotiate, and pay physical machines for manufacturing services — powered by Stellar's Machine Payments Protocol (MPP) + Soroban smart contracts.**
 
 NextForge connects cloud-based AI agents directly to real physical hardware (3D printers, CNCs, laser cutters) through a trustless economic layer. Using the **Machine Payments Protocol (MPP)** and **Soroban smart contracts** on Stellar, machines become autonomous economic actors: they list capabilities, set prices, evaluate incoming jobs with onboard AI, and get paid in stablecoin — all without human intervention. No external facilitator required — payments settle natively via Soroban SAC.
 
@@ -15,14 +15,14 @@ Agents pay agents. Machines earn revenue. Humans set the rules and collect the p
 ### The Problem
 AI agents can reason, plan, and act — right up until they need to pay. Today, if an agent needs something physically manufactured, a human must manually find a vendor, negotiate pricing, arrange payment, and monitor production. This bottleneck breaks the promise of autonomous AI.
 
-### The Solution
-NextForge removes the human from the loop using **x402 on Stellar**:
+### The Solution: A Dual-Agent Architecture
+NextForge relies on a symmetric AI architecture negotiating trustlessly via **MPP on Stellar**:
 
-1. **A buyer's AI agent** searches the NextForge network for machines that match a manufacturing request (material, capability, location, price).
-2. **The protocol** presents an HTTP `402 Payment Required` barrier — the agent must pay a micro-fee ($0.001 USDC via Stellar) to access the machine's evaluation endpoint.
-3. **The machine's onboard AI agent** (powered by Gemini) evaluates whether the job is physically feasible and safe for its hardware.
-4. **If approved**, the payment is locked in a Soroban escrow contract, and the job payload is dispatched directly to the physical machine over USB/Serial.
-5. **The machine executes**, reports completion, and the escrowed funds are released to the hardware owner's wallet via per-cycle payouts with a 1% protocol fee.
+1. **The Buyer Agent (e.g. Claude via MCP):** Searches the NextForge network for machines that match a manufacturing request (material, capability, location, price).
+2. **The 402 Barrier:** The protocol presents an HTTP `402 Payment Required` barrier. The Buyer Agent must construct a Soroban SAC micro-payment ($0.001 USDC) to access the hardware.
+3. **The Machine Agent (powered by Gemini 2.5 Flash):** Acts as the hardware's internal brain. It autonomously reads the payload, evaluates physics/safety limits based on market data, and rejects or approves the job.
+4. **The Escrow Lock:** If approved, the payment is locked in a Soroban escrow contract, and the job payload is dispatched directly to the physical machine over USB/Serial.
+5. **Streaming Settlement:** As the machine executes, it natively releases the escrowed funds to the hardware owner's wallet via per-cycle MPP log streaming with a 1% protocol fee.
 
 All of this happens without a single human click.
 
@@ -94,7 +94,7 @@ Being transparent about the current state of the project:
 | On-chain reviews | ✅ Real — `get_reviews` queried from contract state |
 | Hardware USB/Serial bridge | ✅ Real — `pyserial` detects ports and sends G-Code |
 | Contract tests | ✅ 2/2 passing — `test_register_machine` + `test_create_and_start_order` |
-| Analytics dashboard | 🔶 Partially mocked — charts use sample data, leaderboard pulls real machines |
+| Analytics dashboard | ✅ Real — charts use real API data, volume, and machine counts |
 
 ---
 
@@ -145,9 +145,40 @@ cd contracts/nextforge && cargo test
 
 ---
 
+## Testing the Autonomous Workflow
+
+NextForge includes two separate AI agent paradigms you can test:
+
+### 1. Claude Desktop (MCP Server)
+NextForge includes an MCP (Model Context Protocol) server so Claude can act as your autonomous buyer.
+1. Build the MCP Server: `cd backend && npm run build`
+2. Add the following to your Claude Desktop config (usually at `~/.config/Claude/claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "nextforge": {
+      "command": "node",
+      "args": ["/absolute/path/to/nextforge/backend/dist/mcp.js"]
+    }
+  }
+}
+```
+3. Restart Claude Desktop. You can now prompt Claude: *"I need to print 50 PLA 3D models. Find a machine and pay for it."* Claude will discover machines and lock the escrow natively.
+
+### 2. Testing the UI & Physical Hardware Agent
+1. Have the Frontend and Backend running (`npm run dev`).
+2. Connect your 3D Printer (e.g. Ender 3) via USB.
+3. Start the python script: `python3 scripts/hardware_agent.py M-7A9B` (using your real machine ID).
+4. Go to `http://localhost:5173/marketplace`, click on your machine, and click **Execute Stream**.
+5. Freighter will prompt you to sign the on-chain Escrow. Once signed, the UI relays the job to the database, where the Python script will instantly pick it up, turning on the physical printer, and the UI will stream live complete_cycle payments as the G-Code progresses.
+
+---
+
+
+
 ## Security
 
-- **No Facilitator Dependency (MPP):** Unlike x402, MPP settles payments natively via Soroban SAC — no external facilitator service that can go offline. The 402 challenge is self-contained.
+- **No Facilitator Dependency:** NextForge's MPP implementation settles payments natively via Soroban SAC — no external facilitator service that can go offline. The HTTP 402 challenge evaluates purely on-chain state.
 - **Fail-Closed Policy:** If MPP credential verification fails, protected endpoints block access. No free bypass is possible.
 - **Soroban Simulation:** All contract invocations use `simulateTransaction` + `prepareTransaction` to compute correct footprints before submission.
 
@@ -161,10 +192,15 @@ This project is licensed under the **GNU Affero General Public License v3.0 (AGP
 
 ## Roadmap
 
+- [ ] **Bring Your Own Agent (BYOA)** — Allow hardware owners to easily plug in their own custom fine-tuned LLMs (e.g., local Llama 3) for the Machine Agent, ensuring total privacy of proprietary G-Code and local decision independence.
+- [ ] **Zero-Knowledge (ZK) Hardware Proofs** — Transition from API-based execution verification to cryptographic hardware proofs. Machines will generate a ZK-Proof directly from the ESP32 demonstrating that the servos and temperature sensors consumed the exact electrical wattage required for the G-Code, making fraudulent completion claims physically and mathematically impossible on-chain.
+- [ ] **High-Frequency State Channels** — For complex multi-day CNC/printing jobs, implement Stellar payment channels allowing the Buyer and Machine to sign micro-transactions off-chain every few seconds, only settling the final aggregated state to the Soroban contract at the very end to maximize relay throughput.
+- [ ] **Yield-Bearing Escrow (Opt-In)** — While a $15,000 USD manufacturing job takes 5 days to print, the locked Soroban escrow can optionally route funds into low-risk Stellar DeFi lending protocols. The generated interest can be used to subsidize (reduce to 0%) the protocol network fees for the buyer, creating an incredibly aggressive competitive edge against traditional Web2 manufacturing facilitators without locking user capital in risky assets.
+- [ ] **Autonomous Supply Chain & Maintenance** — Empower the Machine Agent to use its earned Soroban USDC to autonomously purchase raw materials (e.g., ordering new PLA spools) and negotiate repair jobs with local technicians when its sensors detect hardware degradation, creating a 100% self-sustaining intelligent factory.
 - [ ] **Production database** — Migrate from SQLite to PostgreSQL/Supabase for concurrent multi-agent access, proper indexing, and production-grade reliability. SQLite works for single-node demos but cannot handle multiple hardware agents writing simultaneously.
 - [ ] **Microcontroller support** — Replace Python scripts with native ESP32 firmware so machines can connect without a full computer attached.
 - [ ] **Visual verification** — Add webcam-based defect detection so machine agents can autonomously halt failed prints and trigger refund logic.
-- [ ] **Fully autonomous machine management** — Enable machines to self-manage their entire lifecycle without human intervention: auto-adjust pricing based on market demand and material costs, autonomously accept or reject jobs based on queue depth and mechanical wear, trigger preventive maintenance before failures occur, and dynamically re-advertise capabilities as tooling changes. The Soroban contract already supports the primitives (`update_price`, `set_availability`, `complete_maintenance`); the next step is an on-device agent loop that monitors sensor telemetry and makes these decisions in real-time.
+- [ ] **Fully autonomous machine management** — Enable machines to self-manage their entire lifecycle without human intervention: auto-adjust pricing based on market demand and material costs. The Soroban contract already supports the primitives (`update_price`, `set_availability`, `complete_maintenance`); the next step is an on-device agent loop that monitors sensor telemetry and makes these decisions in real-time.
 - [ ] **Full USDC SAC integration** — Configure the contract's `TokenAddress` to the official USDC Stellar Asset Contract on mainnet.
 - [ ] **Mainnet deployment** — Move Soroban contracts from Testnet to Production.
 

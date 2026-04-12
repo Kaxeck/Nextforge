@@ -18,9 +18,9 @@ def auto_detect_printer() -> serial.Serial:
     ports = serial.tools.list_ports.comports()
     
     if not ports:
-        print("❌ CRITICAL FAILURE: No USB/Serial devices detected.")
-        print("   If you want a real implementation, you MUST plug in a machine.")
-        sys.exit(1)
+        print("⚠️ WARNING: No USB/Serial devices detected.")
+        print("   -> FALLING BACK TO MOCK MODE (For Software Demo Purposes)")
+        return None
 
     for p in ports:
         print(f"    - Found Port: {p.device} ({p.description})")
@@ -42,9 +42,9 @@ def auto_detect_printer() -> serial.Serial:
         except serial.SerialException:
             pass
 
-    print("❌ CRITICAL FAILURE: Found USB devices, but they are not responding to GCODE.")
-    print("   Is your 3D printer/CNC turned on?")
-    sys.exit(1)
+    print("⚠️ WARNING: Found USB devices, but they are not responding to GCODE.")
+    print("   -> FALLING BACK TO MOCK MODE (For Software Demo Purposes)")
+    return None
 
 def wait_for_ok(ser: serial.Serial):
     """Wait for the printer to acknowledge 'ok' before sending next command."""
@@ -59,23 +59,27 @@ def loop_agent(machine_id):
     ser = auto_detect_printer()
     
     print(f"\n[*] Agent Boot Sequence Complete. Bound to NextForge ID: {machine_id}")
-    print("[*] Fetching bed temps (M105)...")
-    ser.write(b"M105\n")
-    print(f"    {ser.readline().decode('utf-8').strip()}")
-    print("[+] Physical Hardware Armed and Ready.\n")
+    
+    if ser:
+        print("[*] Fetching bed temps (M105)...")
+        ser.write(b"M105\n")
+        print(f"    {ser.readline().decode('utf-8').strip()}")
+        print("[+] Physical Hardware Armed and Ready.\n")
+    else:
+        print("[+] Virtual Hardware Armed and Ready (MOCK MODE).\n")
     
     while True:
         try:
             # 1. Send Heartbeat 
             requests.post(f"{NEXTFORGE_URL}/api/hardware/heartbeat", json={"machine_id": machine_id})
             
-            # 2. Poll for X402-Paid Jobs
+            # 2. Poll for MPP-Paid Jobs
             response = requests.get(f"{NEXTFORGE_URL}/api/hardware/poll?machine_id={machine_id}")
             data = response.json()
             
             if data.get("has_job"):
                 job = data["job"]
-                print(f"⚠️ [x402 CLEARANCE] INCOMING PAYLOAD RECEIVED!")
+                print(f"⚠️ [MPP CLEARANCE] INCOMING PAYLOAD RECEIVED!")
                 print(f"   Job ID: {job['id']}")
                 payload = job['payload']
 
@@ -100,8 +104,11 @@ def loop_agent(machine_id):
                     for idx, cmd in enumerate(commands):
                         if not cmd.strip() or cmd.startswith(";"): continue
                         print(f"   [TX ->] {cmd}")
-                        ser.write((cmd + "\n").encode())
-                        wait_for_ok(ser)
+                        if ser:
+                            ser.write((cmd + "\n").encode())
+                            wait_for_ok(ser)
+                        else:
+                            time.sleep(1.5) # Mock execution time per G-Code line
                         print(f"   [<- RX] ok ({idx}/{len(commands)})")
                 except Exception as ex:
                     print(f"❌ HW CRASH: {ex}")

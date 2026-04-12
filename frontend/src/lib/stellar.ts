@@ -101,3 +101,72 @@ export async function registerMachineOnChain(
         console.log(`✅ Transaction submitted! Hash: ${response.hash}`);
         return response.hash;
 }
+
+/**
+ * Builds the XDR for create_order (Escrow), asks Freighter to sign it, and submits.
+ */
+export async function createOrderOnChain(
+    orderId: string,
+    buyerAddress: string,
+    machineId: string,
+    description: string,
+    totalCycles: number,
+    budgetStroops: number
+) {
+    console.log(`📡 Sending create_order(${orderId}) to Soroban via Freighter...`);
+
+    const account = await server.getAccount(buyerAddress);
+    const contract = new Contract(CONTRACT_ID);
+    
+    // Convert to native SCVal types
+    const op = contract.call(
+        "create_order",
+        nativeToScVal(orderId, { type: "string" }),
+        new Address(buyerAddress).toScVal(), // buyer
+        nativeToScVal(machineId, { type: "string" }),
+        nativeToScVal(description, { type: "string" }),
+        nativeToScVal(totalCycles, { type: "u32" }),
+        nativeToScVal(budgetStroops, { type: "i128" }),
+        nativeToScVal(Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), { type: "u64" }), // Timelock 7 days
+        nativeToScVal(budgetStroops, { type: "i128" }) // Max spend limit defaults to budget
+    );
+
+    const tx = new TransactionBuilder(account, { 
+        fee: "15000", 
+        networkPassphrase: "Test SDF Network ; September 2015"
+    })
+    .addOperation(op)
+    .setTimeout(60)
+    .build();
+
+    console.log("Simulating order transaction for footprint authorization...");
+    const simulated = await server.simulateTransaction(tx);
+    
+    if (!rpc.Api.isSimulationSuccess(simulated)) {
+        const errorMessage = (simulated as any).error || (simulated as any).result?.error || "Simulation failed";
+        throw new Error(`Order Simulation Failed: ${errorMessage}`);
+    }
+
+    let preparedTx = await server.prepareTransaction(tx);
+
+    console.log("Awaiting Freighter logic for Order creation...");
+    const freighterResponse = await signTransaction(preparedTx.toXDR(), { 
+        networkPassphrase: "Test SDF Network ; September 2015"
+    });
+    
+    // @ts-ignore
+    const finalXdr = typeof freighterResponse === "string" ? freighterResponse : freighterResponse.signedTxXdr;
+    if (!finalXdr) throw new Error("Order canceled or Freighter failed");
+
+    const signedTransaction = TransactionBuilder.fromXDR(finalXdr, "Test SDF Network ; September 2015");
+    console.log("Submitting order to blockchain...");
+    
+    const response = await server.sendTransaction(signedTransaction);
+    
+    if (response.status === "ERROR") {
+        throw new Error(`Order submission failed.`);
+    }
+
+    console.log(`✅ Order submitted! Hash: ${response.hash}`);
+    return response.hash;
+}

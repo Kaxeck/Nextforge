@@ -45,12 +45,13 @@ export function initDatabase() {
             FOREIGN KEY(machine_id) REFERENCES machines_cache(id)
         );
 
-        CREATE TABLE IF NOT EXISTS x402_payments (
+        CREATE TABLE IF NOT EXISTS mpp_payments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             machine_id TEXT,
             payer TEXT,
             amount REAL,
-            payment_type TEXT, -- cycle_execution, broker_evaluation, pricing_audit, material_listing
+            payment_type TEXT, -- mpp_gate_payment, cycle_execution, broker_evaluation, pricing_audit, material_listing
+            tx_hash TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -73,8 +74,42 @@ export function initDatabase() {
             FOREIGN KEY(machine_id) REFERENCES machines_cache(id)
         );
     `);
+
+    // Migration: rename legacy x402_payments table if it exists
+    try {
+        const hasLegacy = db.prepare(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='x402_payments'"
+        ).get();
+        if (hasLegacy) {
+            // Copy any existing data from legacy table to new table
+            db.exec(`
+                INSERT OR IGNORE INTO mpp_payments (id, machine_id, payer, amount, payment_type, created_at)
+                SELECT id, machine_id, payer, amount, payment_type, created_at FROM x402_payments;
+            `);
+            db.exec(`DROP TABLE IF EXISTS x402_payments;`);
+            console.log('📦 Migrated x402_payments → mpp_payments');
+        }
+    } catch {
+        // Migration already completed or table doesn't exist
+    }
     
-    console.log("NextForge SQLite Cache initialized (with x402 tables).");
+    // DEMO DATA: Seed 2 failed/offline machines if DB is empty so the live-registered machine is the only good one
+    try {
+        const result = db.prepare("SELECT count(*) as count FROM machines_cache").get() as { count: number };
+        if (result.count === 0) {
+            db.exec(`
+                INSERT OR IGNORE INTO machines_cache (id, owner, machine_type, price, materials, status, location, reputation, ai_notes)
+                VALUES 
+                ('M-DEAD1', 'GATX...', 'Layer Extruder', 0.50, 'PLA', 'pending_maintenance', 'Berlin, DE', 35, 'Agent auto-flagged hardware wear. Rejecting jobs.'),
+                ('M-OFF2', 'GBCY...', 'CNC Mill', 0.25, 'Aluminum', 'offline', 'Tokyo, JP', 20, 'Hardware isolated. Did not send MPP heartbeat within 72hrs.');
+            `);
+            console.log("🌱 Demo seeded: Added 2 'broken/offline' machines for contrast.");
+        }
+    } catch(e) {
+        console.error("Demo seed failed", e);
+    }
+    
+    console.log("NextForge SQLite Cache initialized (with MPP payment tables).");
 }
 
 export function getDb() {

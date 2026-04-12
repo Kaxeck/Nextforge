@@ -447,9 +447,9 @@ body { background: var(--color-bg-app); margin: 0; color: var(--color-text-prima
 .nf-range-btn { font-size: 10px; padding: 3px 8px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-primary); background: transparent; color: var(--color-text-secondary); cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .15s; }
 .nf-range-btn.active { background: var(--color-bg-tertiary); color: var(--color-text-primary); border-color: var(--color-border-primary); }
 
-/* x402 spinner animation */
-.spin { animation: x402spin 1s linear infinite; }
-@keyframes x402spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+/* MPP payment spinner animation */
+.spin { animation: mpp-spin 1s linear infinite; }
+@keyframes mpp-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 /* Disabled button state */
 .nf-btn-primary:disabled, .nf-btn-outline:disabled {

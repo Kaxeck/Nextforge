@@ -46,8 +46,4 @@ else
     echo "VITE_SOROBAN_CONTRACT_ID=$CONTRACT_ID" >> .env
 fi
 
-# Switch env from Solana to Stellar
-sed -i "s/VITE_RPC_URL=https:\/\/api.devnet.solana.com/VITE_RPC_URL=https:\/\/soroban-testnet.stellar.org/" .env
-sed -i "s/SOLANA_NETWORK=devnet/STELLAR_NETWORK=testnet/" .env
-
 echo "🎉 Setup Complete! NextForge is mapped to testnet contract."

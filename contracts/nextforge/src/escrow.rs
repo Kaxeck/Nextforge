@@ -10,6 +10,8 @@ pub fn create_order_with_id(
     description: String,
     total_cycles: u32,
     budget: i128,
+    timelock_deadline: u64,
+    max_spend_limit: i128,
 ) {
     buyer.require_auth();
 
@@ -25,6 +27,10 @@ pub fn create_order_with_id(
     
     if budget < machine.price_per_cycle * (total_cycles as i128) {
         panic!("Budget too small");
+    }
+    
+    if budget > max_spend_limit {
+        panic!("Budget exceeds safety spending limit");
     }
 
     // Transfer funds from buyer to the contract itself (escrow)
@@ -45,6 +51,8 @@ pub fn create_order_with_id(
         escrow_amount: budget,
         deposit_released: false,
         created_at: env.ledger().timestamp(),
+        timelock_deadline,
+        max_spend_limit,
     };
 
     env.storage().persistent().set(&DataKey::Order(order_id.clone()), &order);
@@ -85,6 +93,10 @@ pub fn complete_cycle(env: &Env, order_id: String) {
     
     if order.status != 1 {
         panic!("Order not active");
+    }
+    
+    if env.ledger().timestamp() > order.timelock_deadline {
+        panic!("Timelock expired: Order duration has elapsed");
     }
     
     let machine = machines::get_machine(env, order.machine_id.clone());
@@ -176,4 +188,30 @@ pub fn open_dispute(env: &Env, order_id: String) {
 
 pub fn get_order(env: &Env, order_id: String) -> Order {
     env.storage().persistent().get(&DataKey::Order(order_id)).unwrap()
+}
+
+pub fn refund_expired_order(env: &Env, order_id: String) {
+    let mut order: Order = env.storage().persistent().get(&DataKey::Order(order_id.clone())).unwrap();
+    order.buyer.require_auth();
+    
+    if order.status == 2 || order.status == 4 {
+        panic!("Order already completed or cancelled");
+    }
+    
+    if env.ledger().timestamp() <= order.timelock_deadline {
+        panic!("Timelock has not yet expired");
+    }
+    
+    order.status = 4; // cancelled
+    let refund = order.escrow_amount;
+    order.escrow_amount = 0;
+    
+    if refund > 0 {
+        let token_addr: Address = env.storage().instance().get(&DataKey::TokenAddress).unwrap();
+        let token = token::Client::new(env, &token_addr);
+        token.transfer(&env.current_contract_address(), &order.buyer, &refund);
+    }
+    
+    env.storage().persistent().set(&DataKey::Order(order_id.clone()), &order);
+    // You could emit an order_cancelled event here ideally
 }

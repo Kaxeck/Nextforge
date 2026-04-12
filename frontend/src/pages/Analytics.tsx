@@ -2,53 +2,119 @@ import { useState, useEffect } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
-
 /**
  * Analytics Component
- * Provides a comprehensive overview of network activity, economic throughput,
- * and machine performance metrics aggregated from the Stellar blockchain.
+ * Real-time network intelligence dashboard.
+ * All visualizations are computed from live API data — zero hardcoded values.
  */
 export function Analytics() {
   const [machines, setMachines] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(`${API_URL}/machines`)
-      .then(res => res.json())
-      .then(json => setMachines(json.data || []));
+    const fetchAll = () => {
+      fetch(`${API_URL}/machines`)
+        .then(res => res.json())
+        .then(json => setMachines(json.data || []));
 
-    fetch(`${API_URL}/x402/payments?limit=50`)
-      .then(res => res.json())
-      .then(json => setPayments(json.data || []));
+      fetch(`${API_URL}/mpp/payments?limit=50`)
+        .then(res => res.json())
+        .then(json => setPayments(json.data || []));
+    };
+    fetchAll();
+    const iv = setInterval(fetchAll, 8000);
+    return () => clearInterval(iv);
   }, []);
 
-  // Compute live metrics
-  const totalMachines = machines.length > 0 ? machines.length : 0;
-  const jobsCompleted = payments.filter(p => p.payment_type === 'cycle_execution').length;
-  const avgReputation = totalMachines > 0 
+  // ===== COMPUTED METRICS (all from real data) =====
+  const totalMachines = machines.length;
+  const cyclePayments = payments.filter(p => p.payment_type === 'cycle_execution');
+  const jobsCompleted = cyclePayments.length;
+
+  const avgReputation = totalMachines > 0
     ? (machines.reduce((acc, m) => acc + (m.reputation || 0), 0) / totalMachines).toFixed(1)
-    : "0.0";
-    
+    : "—";
+
   const autoRepairs = machines.filter(m => m.reputation < 50 && m.reputation > 0).length;
+
+  const totalVolume = payments.reduce((acc, p) => {
+    const amt = p.amount > 1000 ? p.amount / 10_000_000 : Number(p.amount);
+    return acc + amt;
+  }, 0);
+
+  const avgCyclePrice = totalMachines > 0
+    ? (machines.reduce((acc, m) => {
+        const p = m.price > 1000 ? m.price / 10_000_000 : m.price;
+        return acc + p;
+      }, 0) / totalMachines).toFixed(4)
+    : "—";
+
+  // ===== MACHINE TYPE DISTRIBUTION =====
+  const typeCount: Record<string, number> = {};
+  machines.forEach(m => {
+    const t = m.machine_type || 'Unknown';
+    typeCount[t] = (typeCount[t] || 0) + 1;
+  });
+  const typeEntries = Object.entries(typeCount).sort((a, b) => b[1] - a[1]);
+  const typeColors = ['var(--color-accent)', 'var(--color-success)', 'var(--color-warn)', 'var(--color-purple)', 'var(--color-danger)'];
+
+  // Build donut segments from real data
+  const circumference = 2 * Math.PI * 30; // r=30
+  let cumulativeOffset = 0;
+  const donutSegments = typeEntries.map(([type, count], i) => {
+    const pct = totalMachines > 0 ? count / totalMachines : 0;
+    const dashLength = pct * circumference;
+    const segment = { type, count, pct, dashLength, offset: -cumulativeOffset, color: typeColors[i % typeColors.length] };
+    cumulativeOffset += dashLength;
+    return segment;
+  });
+
+  // ===== PAYMENT VOLUME OVER TIME (grouped by day) =====
+  const volumeByDay: Record<string, number> = {};
+  payments.forEach(p => {
+    const day = p.created_at ? p.created_at.split(' ')[0].split('T')[0] : 'unknown';
+    const amt = p.amount > 1000 ? p.amount / 10_000_000 : Number(p.amount);
+    volumeByDay[day] = (volumeByDay[day] || 0) + amt;
+  });
+  const volumeDays = Object.entries(volumeByDay).sort((a, b) => a[0].localeCompare(b[0])).slice(-14);
+  const maxVolume = Math.max(...volumeDays.map(d => d[1]), 0.001);
+
+  // ===== PAYMENT TYPE DISTRIBUTION (for heatmap replacement) =====
+  const paymentTypeCount: Record<string, number> = {};
+  payments.forEach(p => {
+    const t = p.payment_type || 'unknown';
+    paymentTypeCount[t] = (paymentTypeCount[t] || 0) + 1;
+  });
+  const paymentTypeEntries = Object.entries(paymentTypeCount).sort((a, b) => b[1] - a[1]);
+
+  // ===== AGENT DECISION STATS (from payments + machines) =====
+  const machineJobCount: Record<string, number> = {};
+  payments.forEach(p => {
+    if (p.machine_id) {
+      machineJobCount[p.machine_id] = (machineJobCount[p.machine_id] || 0) + 1;
+    }
+  });
+  const topMachines = Object.entries(machineJobCount).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const maxJobs = Math.max(...topMachines.map(m => m[1]), 1);
 
   return (
     <div className="nf-analytics-page">
-      {/* TOP METRICS */}
+      {/* TOP METRICS — ALL REAL */}
       <div className="nf-metrics-6">
         <div className="nf-metric">
           <div className="nf-metric-label">Network machines</div>
           <div className="nf-metric-value">{totalMachines}</div>
-          <div className="nf-metric-sub">+3 today</div>
+          <div className="nf-metric-sub">registered on-chain</div>
         </div>
         <div className="nf-metric">
           <div className="nf-metric-label">Cycles completed</div>
           <div className="nf-metric-value">{jobsCompleted}</div>
-          <div className="nf-metric-sub">live via streaming</div>
+          <div className="nf-metric-sub">via MPP streaming</div>
         </div>
         <div className="nf-metric">
           <div className="nf-metric-label">MPP Payments</div>
           <div className="nf-metric-value">{payments.length}</div>
-          <div className="nf-metric-sub" style={{ color: 'var(--color-text-secondary)' }}>tracked on-chain</div>
+          <div className="nf-metric-sub">tracked on-chain</div>
         </div>
         <div className="nf-metric">
           <div className="nf-metric-label">Avg rep score</div>
@@ -58,83 +124,104 @@ export function Analytics() {
         <div className="nf-metric">
           <div className="nf-metric-label">Auto-repairs</div>
           <div className="nf-metric-value">{autoRepairs}</div>
-          <div className="nf-metric-sub" style={{ color: 'var(--color-text-secondary)' }}>critical conditions</div>
+          <div className="nf-metric-sub">{autoRepairs > 0 ? 'critical conditions' : 'all systems normal'}</div>
         </div>
         <div className="nf-metric">
           <div className="nf-metric-label">Avg cycle price</div>
-          <div className="nf-metric-value mono">0.005</div>
-          <div className="nf-metric-sub" style={{ color: 'var(--color-text-secondary)' }}>USDC · stable</div>
+          <div className="nf-metric-value mono">{avgCyclePrice}</div>
+          <div className="nf-metric-sub">USDC · computed</div>
         </div>
       </div>
 
-      {/* ROW 1: VOLUME + MACHINE TYPES */}
+      {/* ROW 1: VOLUME + MACHINE TYPES — REAL DATA */}
       <div className="nf-grid-31">
 
-        {/* XLM VOLUME BAR CHART */}
+        {/* USDC VOLUME BAR CHART — from real payment history */}
         <div className="nf-panel">
           <div className="nf-panel-header">
-            <span className="nf-panel-title">XLM volume — last 14 days</span>
-            <div className="nf-range">
-              <button className="nf-range-btn">7d</button>
-              <button className="nf-range-btn active">14d</button>
-              <button className="nf-range-btn">30d</button>
-            </div>
+            <span className="nf-panel-title">USDC volume — {volumeDays.length > 0 ? `last ${volumeDays.length} days` : 'no data yet'}</span>
+            <span className="nf-tag">live</span>
           </div>
           <div className="nf-panel-body">
-            <div className="nf-chart">
-              {[38, 45, 52, 48, 61, 55, 70, 65, 78, 72, 85, 80, 92, 100].map((h, i) => (
-                <div className="nf-bar-col" key={i}>
-                  <div 
-                    className="nf-bar" 
-                    style={{ 
-                      height: `${h}%`, 
-                      background: 'var(--color-accent)', 
-                      opacity: i === 13 ? 1 : 0.3 + (i * 0.05) 
-                    }}
-                  ></div>
-                  <div className="nf-bar-label" style={i === 13 ? { color: 'var(--color-accent)', fontWeight: 700 } : {}}>
-                    {i < 10 ? `M${22 + i}` : i === 10 ? 'A1' : i === 11 ? 'A2' : i === 12 ? 'A3' : 'A4'}
-                  </div>
+            {volumeDays.length > 0 ? (
+              <>
+                <div className="nf-chart">
+                  {volumeDays.map(([day, vol], i) => (
+                    <div className="nf-bar-col" key={i}>
+                      <div
+                        className="nf-bar"
+                        style={{
+                          height: `${Math.max((vol / maxVolume) * 100, 4)}%`,
+                          background: 'var(--color-accent)',
+                          opacity: 0.4 + (i / volumeDays.length) * 0.6
+                        }}
+                      ></div>
+                      <div className="nf-bar-label" style={i === volumeDays.length - 1 ? { color: 'var(--color-accent)', fontWeight: 700 } : {}}>
+                        {day.slice(-5)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              <span>Total: <span className="mono" style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>28,420 XLM</span></span>
-              <span>Peak: <span className="mono" style={{ color: 'var(--color-accent)', fontWeight: 700 }}>4,820 XLM</span> · Apr 4</span>
-              <span>Txns: <span className="mono" style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>18,441</span></span>
-            </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                  <span>Total: <span className="mono" style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{totalVolume.toFixed(4)} USDC</span></span>
+                  <span>Peak: <span className="mono" style={{ color: 'var(--color-accent)', fontWeight: 700 }}>{maxVolume.toFixed(4)} USDC</span></span>
+                  <span>Txns: <span className="mono" style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{payments.length}</span></span>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: '12px', padding: '30px 0', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                Awaiting first MPP transactions to populate volume chart.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* MACHINE TYPE DONUT */}
+        {/* MACHINE TYPE DONUT — computed from real machine data */}
         <div className="nf-panel">
           <div className="nf-panel-header"><span className="nf-panel-title">Machine types</span></div>
           <div className="nf-panel-body">
-            <div className="nf-donut-wrap">
-              <svg width="80" height="80" viewBox="0 0 80 80" style={{ flexShrink: 0 }}>
-                <circle cx="40" cy="40" r="30" fill="none" stroke="var(--color-bg-secondary)" strokeWidth="14"/>
-                <circle cx="40" cy="40" r="30" fill="none" stroke="var(--color-accent)" strokeWidth="14" strokeDasharray="75 113" strokeDashoffset="0" transform="rotate(-90 40 40)"/>
-                <circle cx="40" cy="40" r="30" fill="none" stroke="var(--color-success)" strokeWidth="14" strokeDasharray="34 154" strokeDashoffset="-75" transform="rotate(-90 40 40)"/>
-                <circle cx="40" cy="40" r="30" fill="none" stroke="var(--color-warn)" strokeWidth="14" strokeDasharray="23 165" strokeDashoffset="-109" transform="rotate(-90 40 40)"/>
-                <circle cx="40" cy="40" r="30" fill="none" stroke="var(--color-purple)" strokeWidth="14" strokeDasharray="20 168" strokeDashoffset="-132" transform="rotate(-90 40 40)"/>
-                <text x="40" y="44" textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--color-text-primary)" fontFamily="Space Mono">247</text>
-              </svg>
-              <div className="nf-donut-legend">
-                <div className="nf-legend-row"><div className="nf-legend-dot" style={{ background: 'var(--color-accent)' }}></div><span style={{ flex: 1, color: 'var(--color-text-secondary)' }}>FDM 3D</span><span className="mono" style={{ fontSize: '11px', fontWeight: 700 }}>42%</span></div>
-                <div className="nf-legend-row"><div className="nf-legend-dot" style={{ background: 'var(--color-success)' }}></div><span style={{ flex: 1, color: 'var(--color-text-secondary)' }}>CNC</span><span className="mono" style={{ fontSize: '11px', fontWeight: 700 }}>22%</span></div>
-                <div className="nf-legend-row"><div className="nf-legend-dot" style={{ background: 'var(--color-warn)' }}></div><span style={{ flex: 1, color: 'var(--color-text-secondary)' }}>Laser</span><span className="mono" style={{ fontSize: '11px', fontWeight: 700 }}>19%</span></div>
-                <div className="nf-legend-row"><div className="nf-legend-dot" style={{ background: 'var(--color-purple)' }}></div><span style={{ flex: 1, color: 'var(--color-text-secondary)' }}>Other</span><span className="mono" style={{ fontSize: '11px', fontWeight: 700 }}>17%</span></div>
+            {totalMachines > 0 ? (
+              <div className="nf-donut-wrap">
+                <svg width="80" height="80" viewBox="0 0 80 80" style={{ flexShrink: 0 }}>
+                  <circle cx="40" cy="40" r="30" fill="none" stroke="var(--color-bg-secondary)" strokeWidth="14"/>
+                  {donutSegments.map((s, i) => (
+                    <circle
+                      key={i}
+                      cx="40" cy="40" r="30"
+                      fill="none"
+                      stroke={s.color}
+                      strokeWidth="14"
+                      strokeDasharray={`${s.dashLength} ${circumference - s.dashLength}`}
+                      strokeDashoffset={s.offset}
+                      transform="rotate(-90 40 40)"
+                    />
+                  ))}
+                  <text x="40" y="44" textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--color-text-primary)" fontFamily="Space Mono">{totalMachines}</text>
+                </svg>
+                <div className="nf-donut-legend">
+                  {donutSegments.map((s, i) => (
+                    <div className="nf-legend-row" key={i}>
+                      <div className="nf-legend-dot" style={{ background: s.color }}></div>
+                      <span style={{ flex: 1, color: 'var(--color-text-secondary)' }}>{s.type}</span>
+                      <span className="mono" style={{ fontSize: '11px', fontWeight: 700 }}>{(s.pct * 100).toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div style={{ fontSize: '12px', padding: '30px 0', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                No machines registered yet.
+              </div>
+            )}
           </div>
         </div>
 
       </div>
 
-      {/* ROW 2: REPUTATION + JOBS PER HOUR */}
+      {/* ROW 2: REPUTATION + PAYMENT BREAKDOWN */}
       <div className="nf-grid-2">
 
-        {/* REPUTATION LEADERBOARD */}
+        {/* REPUTATION LEADERBOARD — from real machines */}
         <div className="nf-panel">
           <div className="nf-panel-header">
             <span className="nf-panel-title">Reputation leaderboard — on-chain</span>
@@ -159,83 +246,88 @@ export function Analytics() {
           </div>
         </div>
 
-        {/* JOBS PER HOUR HEATMAP + LINE */}
+        {/* PAYMENT BREAKDOWN — real data replacing fake heatmap */}
         <div className="nf-panel">
           <div className="nf-panel-header">
-            <span className="nf-panel-title">Jobs per hour — today</span>
-            <span className="nf-tag">Apr 5 · 24h</span>
+            <span className="nf-panel-title">Payment breakdown — by type</span>
+            <span className="nf-tag">MPP · live</span>
           </div>
           <div className="nf-panel-body">
-            <div style={{ marginBottom: '12px' }}>
-              <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>Activity heatmap</div>
-              <div className="nf-heatmap">
-                {[...Array(24)].map((_, i) => {
-                  const op = [0.08, 0.06, 0.05, 0.04, 0.06, 0.08, 0.15, 0.28, 0.45, 0.55, 0.62, 0.58, 0.48, 0.70, 0.78, 0.85, 0.90, 0.82, 0.75, 0.60, 0.50, 0.40, 0.30, 1][i];
-                  return <div className="nf-heat-cell" key={i} style={{ background: 'var(--color-accent)', opacity: op }}></div>;
-                })}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--color-text-secondary)', marginTop: '3px', fontFamily: "'Space Mono', monospace" }}>
-                <span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>now</span>
-              </div>
-            </div>
+            {paymentTypeEntries.length > 0 ? (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                  <div style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-md)', padding: '10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Total payments</div>
+                    <div className="mono" style={{ fontSize: '18px', fontWeight: 700 }}>{payments.length}</div>
+                  </div>
+                  <div style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-md)', padding: '10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Total volume</div>
+                    <div className="mono" style={{ fontSize: '18px', fontWeight: 700 }}>{totalVolume.toFixed(4)}</div>
+                  </div>
+                  <div style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-md)', padding: '10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Unique machines</div>
+                    <div className="mono" style={{ fontSize: '18px', fontWeight: 700 }}>{Object.keys(machineJobCount).length}</div>
+                  </div>
+                </div>
 
-            <div>
-              <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>Payment flow rate (USDC/min)</div>
-              <svg className="nf-line-chart" viewBox="0 0 300 60" preserveAspectRatio="none">
-                <polyline points="0,55 20,52 40,48 60,44 80,38 100,32 120,35 140,28 160,22 180,18 200,14 220,16 240,10 260,12 280,8 300,4" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <polyline points="0,55 20,52 40,48 60,44 80,38 100,32 120,35 140,28 160,22 180,18 200,14 220,16 240,10 260,12 280,8 300,4 300,60 0,60" fill="var(--color-accent)" fillOpacity="0.08"/>
-              </svg>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--color-text-secondary)' }}>
-                <span>0.8 USDC/min</span>
-                <span style={{ color: 'var(--color-accent)', fontWeight: 500 }}>↑ 4.2 USDC/min now</span>
+                {/* Payment type bars */}
+                <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: '8px' }}>By payment type</div>
+                {paymentTypeEntries.map(([type, count], i) => (
+                  <div className="nf-rep-row" key={type}>
+                    <span className="nf-rep-name" style={{ textTransform: 'capitalize' }}>{type.replace(/_/g, ' ')}</span>
+                    <div className="nf-rep-bar-bg">
+                      <div className="nf-rep-bar-fill" style={{ width: `${(count / payments.length) * 100}%`, background: typeColors[i % typeColors.length] }}></div>
+                    </div>
+                    <span className="mono" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{count}</span>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div style={{ fontSize: '12px', padding: '30px 0', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                Awaiting MPP payment activity.
               </div>
-            </div>
+            )}
           </div>
         </div>
 
       </div>
 
-      {/* ROW 3: AGENT DECISIONS + NETWORK ACTIVITY */}
+      {/* ROW 3: MOST ACTIVE MACHINES + NETWORK ACTIVITY */}
       <div className="nf-grid-2">
 
-        {/* AGENT DECISION STATS */}
+        {/* MOST ACTIVE MACHINES — computed from real payments */}
         <div className="nf-panel">
           <div className="nf-panel-header">
-            <span className="nf-panel-title">Agent-to-Agent Negotiations — Today</span>
+            <span className="nf-panel-title">Most active machines — by payments</span>
           </div>
           <div className="nf-panel-body">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
-              <div style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-md)', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Decisions made</div>
-                <div className="mono" style={{ fontSize: '18px', fontWeight: 700 }}>89</div>
+            {topMachines.length > 0 ? (
+              <>
+                <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: '8px' }}>Ranked by total transactions</div>
+                {topMachines.map(([machineId, count], i) => (
+                  <div className="nf-rep-row" key={machineId}>
+                    <span className="nf-rep-name">{machineId}</span>
+                    <div className="nf-rep-bar-bg"><div className="nf-rep-bar-fill" style={{ width: `${(count / maxJobs) * 100}%`, background: 'var(--color-accent)', opacity: 1 - (i * 0.15) }}></div></div>
+                    <span className="mono" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{count} txns</span>
+                  </div>
+                ))}
+
+                {/* Zero-activity machines alert */}
+                {machines.filter(m => !machineJobCount[m.id]).length > 0 && (
+                  <div style={{ marginTop: '10px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-md)', fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                    {machines.filter(m => !machineJobCount[m.id]).map(m => m.id).join(', ')} — <strong>0 transactions</strong> recorded.
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: '12px', padding: '30px 0', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                No payment activity yet. Machines are awaiting their first MPP transactions.
               </div>
-              <div style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-md)', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Avg eval time</div>
-                <div className="mono" style={{ fontSize: '18px', fontWeight: 700 }}>1.2s</div>
-              </div>
-              <div style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-md)', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Rep-over-price</div>
-                <div className="mono" style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-success)' }}>71%</div>
-              </div>
-            </div>
-            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: '8px' }}>Most selected machines</div>
-            <div className="nf-rep-row">
-              <span className="nf-rep-name">M-001</span>
-              <div className="nf-rep-bar-bg"><div className="nf-rep-bar-fill" style={{ width: '62%', background: 'var(--color-accent)' }}></div></div>
-              <span className="mono" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>31 jobs</span>
-            </div>
-            <div className="nf-rep-row">
-              <span className="nf-rep-name">M-004</span>
-              <div className="nf-rep-bar-bg"><div className="nf-rep-bar-fill" style={{ width: '48%', background: 'var(--color-accent)', opacity: .7 }}></div></div>
-              <span className="mono" style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>24 jobs</span>
-            </div>
-            <div style={{ marginTop: '10px', padding: '8px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--border-radius-md)', fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-              M-003 received <strong>0 agent bids</strong> today due to low reputation (52/100). Escrow auto-repair triggered at 08:42.
-            </div>
+            )}
           </div>
         </div>
 
-        {/* NETWORK LIVE FEED */}
+        {/* NETWORK LIVE FEED — from real payments */}
         <div className="nf-panel">
           <div className="nf-panel-header">
             <span className="nf-panel-title">Network activity — live</span>
@@ -244,11 +336,12 @@ export function Analytics() {
           <div style={{ padding: '4px 16px' }}>
             {payments.slice(0, 10).map((p, i) => (
               <div className="nf-feed-row" key={i}>
-                <div className="nf-feed-dot" style={{ background: p.payment_type === 'cycle_execution' ? 'var(--color-success)' : p.payment_type === 'job_verification' ? 'var(--color-accent)' : 'var(--color-purple)' }}></div>
+                <div className="nf-feed-dot" style={{ background: p.payment_type === 'cycle_execution' ? 'var(--color-success)' : p.payment_type === 'mpp_gate_payment' ? 'var(--color-accent)' : 'var(--color-purple)' }}></div>
                 <div className="nf-feed-text">
-                  <strong style={{ textTransform: 'capitalize' }}>{p.payment_type.replace(/_/g, ' ')}</strong> — {p.machine_id} received {p.amount} MPP
+                  <strong style={{ textTransform: 'capitalize' }}>{p.payment_type.replace(/_/g, ' ')}</strong> — {p.machine_id} · {(p.amount > 1000 ? p.amount / 10_000_000 : Number(p.amount)).toFixed(4)} USDC
+                  {p.tx_hash && <span style={{ fontSize: '10px', color: 'var(--color-text-dim)', marginLeft: '6px' }}>tx: {p.tx_hash.slice(0, 8)}…</span>}
                 </div>
-                <div className="nf-feed-time">{new Date(p.created_at).toLocaleTimeString()}</div>
+                <div className="nf-feed-time">{p.created_at ? new Date(p.created_at).toLocaleTimeString() : '—'}</div>
               </div>
             ))}
             {payments.length === 0 && <div style={{ fontSize: '12px', padding: '16px 0', textAlign: 'center', color: 'var(--color-text-secondary)' }}>Awaiting network activity.</div>}

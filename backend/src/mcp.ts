@@ -116,7 +116,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             nativeToScVal(machine_id, { type: 'string' }),
             nativeToScVal(job_payload, { type: 'string' }),
             nativeToScVal(1, { type: 'u32' }),
-            nativeToScVal(machine.price || 10000000, { type: 'i128' })
+            nativeToScVal(machine.price || 10000000, { type: 'i128' }),
+            nativeToScVal(Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), { type: 'u64' }), // Timelock 7 days
+            nativeToScVal(machine.price || 10000000, { type: 'i128' }) // Max spend
         ))
         .setTimeout(30)
         .build();

@@ -74,8 +74,10 @@ impl NextForgeContract {
         description: String,
         total_cycles: u32,
         budget: i128,
+        timelock_deadline: u64,
+        max_spend_limit: i128,
     ) {
-        escrow::create_order_with_id(&env, order_id, buyer, machine_id, description, total_cycles, budget);
+        escrow::create_order_with_id(&env, order_id, buyer, machine_id, description, total_cycles, budget, timelock_deadline, max_spend_limit);
     }
 
     pub fn start_order(env: Env, order_id: String) {
@@ -88,6 +90,10 @@ impl NextForgeContract {
 
     pub fn open_dispute(env: Env, order_id: String) {
         escrow::open_dispute(&env, order_id);
+    }
+
+    pub fn refund_expired_order(env: Env, order_id: String) {
+        escrow::refund_expired_order(&env, order_id);
     }
 
     pub fn get_order(env: Env, order_id: String) -> Order {

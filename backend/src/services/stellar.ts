@@ -211,3 +211,68 @@ export async function getReviewsFromChain(machine_id: string): Promise<any[]> {
     }
     return [];
 }
+
+/**
+ * Invokes start_order on the Smart Contract.
+ */
+export async function startOrderOnChain(orderId: string) {
+    if (!ADMIN_SECRET) throw new Error("AI Admin Secret key not configured");
+    const adminKeypair = Keypair.fromSecret(ADMIN_SECRET);
+    const contract = new Contract(CONTRACT_ID);
+
+    try {
+        console.log(`📡 Sending start_order(${orderId}) to Soroban...`);
+        const sourceAccount = await server.getAccount(adminKeypair.publicKey());
+        let tx = new TransactionBuilder(sourceAccount, { fee: "15000", networkPassphrase: NETWORK_PASSPHRASE })
+            .addOperation(contract.call('start_order', nativeToScVal(orderId, { type: 'string' })))
+            .setTimeout(30).build();
+
+        const simulated = await server.simulateTransaction(tx);
+        if (!rpc.Api.isSimulationSuccess(simulated)) {
+            throw new Error(`Start Order Simulation Failed`);
+        }
+
+        let preparedTx = await server.prepareTransaction(tx);
+        preparedTx.sign(adminKeypair);
+        const sendResult = await server.sendTransaction(preparedTx);
+        
+        if (sendResult.status === "ERROR") throw new Error(`Submission failed.`);
+        return true;
+    } catch (e) {
+        console.error("❌ Failed to start_order on chain:", e);
+        return false;
+    }
+}
+
+/**
+ * Invokes complete_cycle on the Smart Contract.
+ */
+export async function completeCycleOnChain(orderId: string) {
+    if (!ADMIN_SECRET) throw new Error("AI Admin Secret key not configured");
+    const adminKeypair = Keypair.fromSecret(ADMIN_SECRET);
+    const contract = new Contract(CONTRACT_ID);
+
+    try {
+        console.log(`📡 Sending complete_cycle(${orderId}) to Soroban...`);
+        const sourceAccount = await server.getAccount(adminKeypair.publicKey());
+        let tx = new TransactionBuilder(sourceAccount, { fee: "15000", networkPassphrase: NETWORK_PASSPHRASE })
+            .addOperation(contract.call('complete_cycle', nativeToScVal(orderId, { type: 'string' })))
+            .setTimeout(30).build();
+
+        const simulated = await server.simulateTransaction(tx);
+        if (!rpc.Api.isSimulationSuccess(simulated)) {
+            throw new Error(`Complete Cycle Simulation Failed`);
+        }
+
+        let preparedTx = await server.prepareTransaction(tx);
+        preparedTx.sign(adminKeypair);
+        const sendResult = await server.sendTransaction(preparedTx);
+        
+        if (sendResult.status === "ERROR") throw new Error(`Submission failed.`);
+        return true;
+    } catch (e) {
+        console.error("❌ Failed to complete_cycle on chain:", e);
+        return false;
+    }
+}
+

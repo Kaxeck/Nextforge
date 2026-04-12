@@ -42,8 +42,8 @@ export function MyMachines() {
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null);
   const [editPriceVal, setEditPriceVal] = useState("");
   const [editingSubmit, setEditingSubmit] = useState(false);
-  // x402 payment tracking
-  const [x402Payments, setX402Payments] = useState<any[]>([]);
+  // MPP payment tracking
+  const [mppPayments, setMppPayments] = useState<any[]>([]);
 
   const fetchMyMachines = (address: string) => {
     setLoading(true);
@@ -70,16 +70,16 @@ export function MyMachines() {
     return price.toFixed(4);
   };
 
-  // Fetch x402 payment history
+  // Fetch MPP payment history
   useEffect(() => {
-    fetch(`${API_URL}/x402/payments`)
+    fetch(`${API_URL}/mpp/payments`)
       .then(r => r.json())
-      .then(j => { if (j.success) setX402Payments(j.data); })
+      .then(j => { if (j.success) setMppPayments(j.data); })
       .catch(() => {});
     const iv = setInterval(() => {
-      fetch(`${API_URL}/x402/payments`)
+      fetch(`${API_URL}/mpp/payments`)
         .then(r => r.json())
-        .then(j => { if (j.success) setX402Payments(j.data); })
+        .then(j => { if (j.success) setMppPayments(j.data); })
         .catch(() => {});
     }, 10000);
     return () => clearInterval(iv);
@@ -348,7 +348,7 @@ export function MyMachines() {
                 setEditPriceVal(displayPrice(m.price));
               }}
               style={{ fontSize: '11px', padding: '5px 12px', border: '0.5px solid var(--color-border-secondary)', background: 'transparent', borderRadius: 'var(--border-radius-md)', cursor: 'pointer', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Pencil size={12} /> Edit Conditions ($0.0005 x402)
+              <Pencil size={12} /> Edit Conditions ($0.0005 MPP)
             </button>
           </div>
         </div>
@@ -367,7 +367,7 @@ export function MyMachines() {
             </div>
             <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: '1.5' }}>
               <strong>How deployment works:</strong> When you deploy hardware to the network, your conditions are committed cryptographically to the Stellar Soroban network. Simultaneously, a localized Machine Agent uses AI to establish pricing parameters and securely expose your hardware to incoming requests.
-              <br/><br/>Once deployed, your Machine Agent autonomously intercepts jobs from the MCP Server, defends against impossible CAD files, and receives direct x402 crypto payouts.
+              <br/><br/>Once deployed, your Machine Agent autonomously intercepts jobs from the MCP Server, defends against impossible CAD files, and receives direct MPP crypto payouts.
             </div>
           </div>
 
@@ -444,7 +444,7 @@ export function MyMachines() {
       </>
       )}
 
-      {/* EDIT MODAL — Now with x402 fee indicator */}
+      {/* EDIT MODAL — Now with MPP fee indicator */}
       {editingMachine && (
         <div className="nf-modal-overlay">
           <div className="nf-modal-content" style={{ padding: '30px', borderRadius: '16px', maxWidth: '420px', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
@@ -453,12 +453,12 @@ export function MyMachines() {
               Propose a new base price for {editingMachine.id}. Your onboard Machine Agent will evaluate the market viability before allowing the contract update.
             </p>
 
-            {/* x402 Fee Notice */}
+            {/* MPP Fee Notice */}
             <div style={{ background: 'rgba(232, 93, 4, 0.1)', border: '1px solid rgba(232, 93, 4, 0.3)', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <CreditCard size={16} color="var(--color-accent)" />
               <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
-                <strong style={{ color: 'var(--color-accent)' }}>x402 Fee: $0.0005 USDC</strong>
-                <br/>This audit request is gated by an x402 micropayment on Stellar Testnet.
+                <strong style={{ color: 'var(--color-accent)' }}>MPP Fee: $0.0005 USDC</strong>
+                <br/>This audit request is gated by an MPP micropayment on Stellar Testnet.
               </div>
             </div>
             
@@ -483,7 +483,7 @@ export function MyMachines() {
                 onClick={async () => {
                   setEditingSubmit(true);
                   try {
-                    // First, attempt the x402-gated endpoint
+                    // First, attempt the MPP-gated endpoint
                     const res = await fetch(`${API_URL}/machine/evaluate_pricing`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
@@ -495,10 +495,10 @@ export function MyMachines() {
                     });
                     
                     if (res.status === 402) {
-                      // x402 Payment Required! Show the flow
+                      // MPP Payment Required! Show the flow
                       setCustomAlert({ 
-                        title: "x402 Payment Flow Activated", 
-                        message: `HTTP 402 Payment Required detected.\n\nThe Machine Agent optimization for ${editingMachine.id} costs $0.0005 USDC via x402 micropayment on Stellar Testnet.\n\nIn production, Freighter would sign the Soroban auth entries and the Coinbase facilitator would settle the payment automatically.\n\nEndpoint: POST /api/machine/evaluate_pricing\nProtocol: x402 (HTTP 402)\nNetwork: Stellar Testnet`,
+                        title: "MPP Payment Flow Activated", 
+                        message: `HTTP 402 Payment Required detected.\n\nThe Machine Agent optimization for ${editingMachine.id} costs $0.0005 USDC via MPP micropayment on Stellar Testnet.\n\nIn production, Freighter would sign the Soroban auth entries and the Soroban SAC would settle the payment automatically.\n\nEndpoint: POST /api/machine/evaluate_pricing\nProtocol: MPP (Soroban SAC)\nNetwork: Stellar Testnet`,
                         type: 'info'
                       });
                       setEditingMachine(null);
@@ -583,20 +583,20 @@ export function MyMachines() {
           </div>
         </div>
       )}
-      {/* x402 PAYMENT HISTORY */}
-      {walletAddress && x402Payments.length > 0 && (
+      {/* MPP PAYMENT HISTORY */}
+      {walletAddress && mppPayments.length > 0 && (
         <div className="nf-panel" style={{ marginTop: '20px' }}>
           <div className="nf-panel-header">
             <span className="nf-panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <CreditCard size={16} color="var(--color-accent)" />
-              x402 Payment Activity
+              MPP Payment Activity
             </span>
             <span className="nf-tag" style={{ color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}>
-              {x402Payments.length} transactions
+              {mppPayments.length} transactions
             </span>
           </div>
           <div style={{ padding: '8px 16px' }}>
-            {x402Payments.slice(0, 8).map((p: any, i: number) => (
+            {mppPayments.slice(0, 8).map((p: any, i: number) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--color-border-secondary)', fontSize: '12px' }}>
                 <div>
                   <div style={{ color: 'var(--color-text-primary)', fontWeight: 500 }}>{p.payment_type?.replace(/_/g, ' ')}</div>

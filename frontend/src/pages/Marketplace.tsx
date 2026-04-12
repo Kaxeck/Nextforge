@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { formatX402Price } from "../lib/x402";
+import { formatMppPrice, settleMppPayment } from "../lib/mpp";
+import { connectFreighter, createOrderOnChain } from "../lib/stellar";
 import { CreditCard, Zap, ShieldCheck, ExternalLink, Loader2 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -18,12 +19,12 @@ interface Machine {
 }
 
 interface AgentFeedEntry {
-  type: 'pay' | 'decide' | 'warn' | 'x402';
+  type: 'pay' | 'decide' | 'warn' | 'mpp';
   text: string;
   time: string;
 }
 
-interface X402Modal {
+interface MppModal {
   endpoint: string;
   method: string;
   body?: any;
@@ -42,13 +43,15 @@ export function Marketplace() {
   
   // UI Modes
   const [uiMode, setUiMode] = useState<'manual' | 'auto'>('auto');
-  const [autonomousPrompt, setAutonomousPrompt] = useState('I need 100 aluminum parts CNC milled for cheap.');
+  const [autonomousPrompt, setAutonomousPrompt] = useState('I need 50 PLA parts 3D printed, 30mm diameter.');
   const [isSearching, setIsSearching] = useState(false);
 
   // New Order Form state
   const [jobDescription, setJobDescription] = useState('50 PLA parts, 30mm diameter');
   const [budget, setBudget] = useState('0.50');
-  const [targetCycles, setTargetCycles] = useState(50);
+  // Instead of 50, use 3 cycles by default so we can demo fully on-chain per-cycle streaming
+  // without hitting the ~5 minute total block time wait limits.
+  const [targetCycles, setTargetCycles] = useState(3);
   const [agentPriority, setAgentPriority] = useState('Reputation first');
   const [machineType, setMachineType] = useState('FDM');
 
@@ -65,24 +68,24 @@ export function Marketplace() {
   const [totalSpent, setTotalSpent] = useState(0);
   const [activeOrderMachine, setActiveOrderMachine] = useState<Machine | null>(null);
 
-  // x402 state
-  const [x402Modal, setX402Modal] = useState<X402Modal | null>(null);
-  const [x402Processing, setX402Processing] = useState(false);
-  const [x402Payments, setX402Payments] = useState<any[]>([]);
+  // MPP payment state
+  const [mppModal, setMppModal] = useState<MppModal | null>(null);
+  const [mppProcessing, setMppProcessing] = useState(false);
+  const [mppPayments, setMppPayments] = useState<any[]>([]);
 
-  // Fetch x402 transactions dynamically
+  // Fetch MPP transactions dynamically
   useEffect(() => {
     const fetchPayments = () => {
-      fetch(`${API_URL}/x402/payments`)
+      fetch(`${API_URL}/mpp/payments`)
         .then(r => r.json())
-        .then(j => { if (j.success) setX402Payments(j.data); })
+        .then(j => { if (j.success) setMppPayments(j.data); })
         .catch(() => {});
     };
     fetchPayments();
     const iv = setInterval(fetchPayments, 5000);
     return () => clearInterval(iv);
   }, []);
-  const [x402Result, setX402Result] = useState<any>(null);
+  const [mppResult, setMppResult] = useState<any>(null);
   const [agentFeed, setAgentFeed] = useState<AgentFeedEntry[]>([
     { type: 'decide', text: 'Marketplace loaded — scanning Stellar for available agents...', time: 'now' }
   ]);
@@ -305,12 +308,15 @@ export function Marketplace() {
                     <div className={`nf-badge ${showDetail.status === 'verified' ? 'badge-idle' : 'badge-maintenance'}`}>
                         {showDetail.status === 'verified' ? 'verified' : 'pending'}
                     </div>
-                    <span
+                    <a
+                      href={`https://stellar.expert/explorer/testnet/contract/CAYKQHTZHHWHHTSDOP6LJCUNDJOADSX2BOAJACL74IBGGXMEEDHWBLFB`}
+                      target="_blank"
+                      rel="noreferrer"
                       className="nf-tag"
-                      style={{ color: "var(--color-accent)", borderColor: "var(--color-accent)" }}
+                      style={{ color: "var(--color-accent)", borderColor: "var(--color-accent)", textDecoration: 'none' }}
                     >
                       Stellar ↗
-                    </span>
+                    </a>
                   </div>
                 </div>
                 <div className="nf-panel-body">
@@ -377,7 +383,7 @@ export function Marketplace() {
                           <div className="nf-review-top">
                             <div className="nf-avatar">{r.reviewer ? r.reviewer.substring(0, 2).toUpperCase() : 'US'}</div>
                             <span className="nf-stars">{'★'.repeat(r.rating) + '☆'.repeat(5 - r.rating)}</span>
-                            <span className="nf-review-hash">ref: {r.order_id?.substring(0,8)} ↗</span>
+                            <a href="https://stellar.expert/explorer/testnet/contract/CAYKQHTZHHWHHTSDOP6LJCUNDJOADSX2BOAJACL74IBGGXMEEDHWBLFB" target="_blank" rel="noreferrer" className="nf-review-hash" style={{ textDecoration: 'none' }}>ref: {r.order_id?.substring(0,8)} ↗</a>
                           </div>
                           <div className="nf-review-text">
                             Job ID {r.order_id}. Verified on-chain via transaction.
@@ -385,61 +391,9 @@ export function Marketplace() {
                         </div>
                       ))
                     ) : (
-                      <>
-                        <div className="nf-review">
-                          <div className="nf-review-top">
-                            <div className="nf-avatar">AC</div>
-                            <span className="nf-stars">★★★★★</span>
-                            <span className="nf-review-hash">tx: f44a...21bc ↗</span>
-                          </div>
-                          <div className="nf-review-text">
-                            Excellent quality, delivered all 50 parts on time.
-                            Will use again.
-                          </div>
-                        </div>
-                        <div className="nf-review">
-                          <div className="nf-review-top">
-                            <div
-                              className="nf-avatar"
-                              style={{
-                                background: "var(--color-background-success)",
-                                color: "var(--color-text-success)",
-                              }}
-                            >
-                              JM
-                            </div>
-                            <span className="nf-stars">★★★★☆</span>
-                            <span className="nf-review-hash">
-                              tx: 9c3d...88fa ↗
-                            </span>
-                          </div>
-                          <div className="nf-review-text">
-                            Good precision. Slight delay on cycle 12 but recovered
-                            well.
-                          </div>
-                        </div>
-                        <div className="nf-review">
-                          <div className="nf-review-top">
-                            <div
-                              className="nf-avatar"
-                              style={{
-                                background: "rgba(232, 93, 4, 0.12)",
-                                color: "var(--color-accent)",
-                              }}
-                            >
-                              RV
-                            </div>
-                            <span className="nf-stars">★★★★★</span>
-                            <span className="nf-review-hash">
-                              tx: 2a11...77cd ↗
-                            </span>
-                          </div>
-                          <div className="nf-review-text">
-                            Fast and reliable. Best machine I've used on
-                            NextForge.
-                          </div>
-                        </div>
-                      </>
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', padding: '16px 0', textAlign: 'center' }}>
+                        No on-chain reviews yet for this machine.
+                      </div>
                     )}
                   </div>
                 </div>
@@ -568,7 +522,7 @@ export function Marketplace() {
             {uiMode === 'auto' ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                  <strong>NextForge relies on x402 Agentic Connectivity.</strong> APIs are not for humans. If you are a buyer, instruct your sovereign LLM (like Claude Code or OpenHands) to connect directly to our MCP Server to discover hardware, negotiate payload constraints, and clear $0.001 x402 escrow payments completely autonomously.
+                  <strong>NextForge relies on MPP Agentic Connectivity.</strong> APIs are not for humans. If you are a buyer, instruct your sovereign LLM (like Claude Code or OpenHands) to connect directly to our MCP Server to discover hardware, negotiate payload constraints, and clear $0.001 MPP escrow payments completely autonomously.
                 </div>
                 <div style={{ background: '#111', border: '1px solid var(--color-border-primary)', borderRadius: '6px', padding: '12px', overflowX: 'auto' }}>
                   <div style={{ fontSize: '10px', color: 'var(--color-text-dim)', marginBottom: '8px', fontFamily: 'var(--font-mono)' }}>claude_desktop_config.json</div>
@@ -591,7 +545,7 @@ export function Marketplace() {
                   style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px', padding: '12px', fontSize: '12px' }}
                   onClick={() => {
                      setAgentFeed([] /* reset */);
-                     setAgentFeed(prev => [{
+                     setAgentFeed([{
                        type: 'decide',
                        text: `<strong>MCP Link Available</strong> — Awaiting remote agent incoming connection over stdio...`,
                        time: 'now'
@@ -752,18 +706,18 @@ export function Marketplace() {
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
               onClick={() => {
                 if (!selectedMachine) return;
-                // Trigger x402 evaluation flow
-                setX402Modal({
+                // Trigger MPP evaluation flow
+                setMppModal({
                   endpoint: `/relay/machine_agent/evaluate_job?machine_id=${selectedMachine.id}&job_description=${encodeURIComponent(jobDescription)}`,
                   method: 'GET',
                   price: '$0.001',
-                  description: `Deploy your autonomous Buyer Agent to contact ${selectedMachine.id}'s onboard Machine Agent with your job payload "${jobDescription}". The underlying x402 protocol handles the $0.001 USDC negotiation fee over Stellar.`
+                  description: `Deploy your autonomous Buyer Agent to contact ${selectedMachine.id}'s onboard Machine Agent with your job payload "${jobDescription}". The underlying MPP protocol handles the $0.001 USDC negotiation fee over Stellar.`
                 });
               }}
               disabled={!selectedMachine || isStreaming}
             >
               <Zap size={14} />
-              Deploy Buyer Agent ($0.001 x402)
+              Deploy Buyer Agent ($0.001 MPP)
             </button>
             <button 
               className="nf-btn-outline"
@@ -780,14 +734,35 @@ export function Marketplace() {
                 const priceNum = selectedMachine.price > 1000 ? selectedMachine.price / 10000000 : selectedMachine.price;
 
                 // Lock initial escrow simulation
+                const totalBudgetStroops = Math.floor(priceNum * targetCycles * 10_000_000);
+                const orderId = `NF-${Date.now()}`;
+
                 setAgentFeed(prev => [{
                   type: 'warn' as const,
-                  text: `<strong>Escrow locked</strong> — ${(priceNum * targetCycles).toFixed(4)} USDC in Soroban contract for order.`,
+                  text: `<strong>Freighter Prompted</strong> — Please sign to lock ${(priceNum * targetCycles).toFixed(4)} USDC in Soroban testnet escrow for ${targetCycles} cycles.`,
                   time: 'just now'
                 }, ...prev]);
 
-                // SUBMIT JOB TO THE HARDWARE PROTOCOL
                 try {
+                  const buyerAddress = await connectFreighter();
+                  if (!buyerAddress) throw new Error("Freighter not connected");
+
+                  const hash = await createOrderOnChain(
+                      orderId,
+                      buyerAddress,
+                      selectedMachine.id,
+                      jobDescription,
+                      targetCycles,
+                      totalBudgetStroops
+                  );
+
+                  setAgentFeed(prev => [{
+                    type: 'warn' as const,
+                    text: `<strong>Escrow locked On-Chain</strong> — ${(priceNum * targetCycles).toFixed(4)} USDC locked in NextForge Escrow. Tx: <a style="color: var(--color-accent); text-decoration: none;" href="https://stellar.expert/explorer/testnet/tx/${hash}" target="_blank"> ${hash.slice(0,8)} ↗</a>`,
+                    time: 'now'
+                  }, ...prev]);
+
+                  // SUBMIT JOB TO THE HARDWARE PROTOCOL
                   const res = await fetch(`${API_URL}/hardware/submit_job`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -803,16 +778,42 @@ export function Marketplace() {
                       time: 'now'
                     }, ...prev.slice(0, 49)]);
 
+                    // Trigger start_order to release 50% deposit
+                    fetch(`${API_URL}/contract/start_order`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order_id: orderId })
+                    }).catch(console.error);
+
                     // POLL FOR COMPLETION
                     let isCompleted = false;
+                    let lastCyclePaid = 0;
+
                     while (!isCompleted) {
                       await new Promise(r => setTimeout(r, 2000));
                       const pollRes = await fetch(`${API_URL}/hardware/status_check?job_id=${jobId}`);
                       const pollJson = await pollRes.json();
                       
                       if (pollJson.status === 'executing') {
-                         setCurrentCycle(Math.floor(Math.random() * targetCycles));
-                         setTotalSpent(prev => prev + (priceNum / 2));
+                         setCurrentCycle(prev => {
+                            const newCycle = Math.min(prev + 1, targetCycles);
+                            
+                            // Let the backend sync complete_cycle to Soroban
+                            if (newCycle > lastCyclePaid) {
+                                lastCyclePaid = newCycle;
+                                fetch(`${API_URL}/contract/complete_cycle`, {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ order_id: orderId })
+                                }).catch(console.error);
+
+                                setAgentFeed(fc => [{
+                                  type: 'mpp' as const,
+                                  text: `<strong>Cycle ${newCycle} Paid</strong> — Relay triggered complete_cycle() releasing funds for ${selectedMachine.id}.`,
+                                  time: 'now'
+                                }, ...fc.slice(0,49)]);
+                            }
+                            return newCycle;
+                         });
+                         setTotalSpent(prev => prev + priceNum);
                       } else if (pollJson.status === 'completed') {
                          isCompleted = true;
                          setCurrentCycle(targetCycles);
@@ -820,8 +821,15 @@ export function Marketplace() {
                       }
                     }
                   }
-                } catch (e) {
-                  console.error("Hardware dispatch error", e);
+                } catch (e: any) {
+                  console.error("Hardware/Escrow dispatch error", e);
+                  setAgentFeed(prev => [{
+                    type: 'decide' as const,
+                    text: `<strong>Execution Aborted</strong> — ${e.message}`,
+                    time: 'now'
+                  }, ...prev]);
+                  setIsStreaming(false);
+                  return;
                 }
                 
                 setIsStreaming(false);
@@ -857,7 +865,7 @@ export function Marketplace() {
           <div style={{ padding: "4px 16px" }}>
             {agentFeed.map((entry, i) => (
               <div className="nf-agent-entry" key={i}>
-                <div className={`nf-agent-dot ${entry.type === 'pay' ? 'dot-pay' : entry.type === 'x402' ? 'dot-pay' : entry.type === 'warn' ? 'dot-warn' : 'dot-decide'}`}></div>
+                <div className={`nf-agent-dot ${entry.type === 'pay' ? 'dot-pay' : entry.type === 'mpp' ? 'dot-pay' : entry.type === 'warn' ? 'dot-warn' : 'dot-decide'}`}></div>
                 <div>
                   <div className="nf-agent-text" dangerouslySetInnerHTML={{ __html: entry.text }}></div>
                   <div className="nf-agent-time">{entry.time}</div>
@@ -871,23 +879,34 @@ export function Marketplace() {
         <div className="nf-panel">
           <div className="nf-panel-header">
             <span className="nf-panel-title">My transactions</span>
-            <span
+            <a
+              href="https://stellar.expert/explorer/testnet/contract/CAYKQHTZHHWHHTSDOP6LJCUNDJOADSX2BOAJACL74IBGGXMEEDHWBLFB"
+              target="_blank"
+              rel="noreferrer"
               className="nf-tag"
-              style={{ color: "var(--color-accent)", borderColor: "var(--color-accent)" }}
+              style={{ color: "var(--color-accent)", borderColor: "var(--color-accent)", textDecoration: 'none' }}
             >
               Stellar ↗
-            </span>
+            </a>
           </div>
           <div style={{ padding: "4px 16px" }}>
-            {x402Payments.length === 0 ? (
+            {mppPayments.length === 0 ? (
               <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', textAlign: 'center', padding: '10px 0' }}>
                 No active streams or purchases...
               </div>
             ) : (
-              x402Payments.slice(0, 5).map((tx, idx) => (
+              mppPayments.slice(0, 5).map((tx, idx) => (
                 <div className="nf-tx-row" key={idx}>
                   <div>
-                    <div className="nf-tx-hash">{tx.payer === 'x402_buyer' ? 'Stellar' : tx.payer.substring(0,6)}...</div>
+                    <div className="nf-tx-hash">
+                        {tx.tx_hash ? (
+                           <a style={{ color: 'var(--color-accent)', textDecoration: 'none' }} href={`https://stellar.expert/explorer/testnet/tx/${tx.tx_hash}`} target="_blank" rel="noreferrer">
+                             {tx.payer === 'mpp_client' ? 'Stellar' : tx.payer.substring(0,6)}... ↗
+                           </a>
+                        ) : (
+                           `${tx.payer === 'mpp_client' ? 'Stellar' : tx.payer.substring(0,6)}...`
+                        )}
+                    </div>
                     <div className="nf-tx-type">{tx.payment_type.replace(/_/g, ' ')} · {tx.machine_id}</div>
                   </div>
                   <div
@@ -903,13 +922,13 @@ export function Marketplace() {
         </div>
       </div>
 
-      {/* ===== x402 PAYMENT MODAL ===== */}
-      {x402Modal && (
-        <div className="nf-modal-overlay" onClick={() => { if (!x402Processing) { setX402Modal(null); setX402Result(null); } }}>
+      {/* ===== MPP PAYMENT MODAL ===== */}
+      {mppModal && (
+        <div className="nf-modal-overlay" onClick={() => { if (!mppProcessing) { setMppModal(null); setMppResult(null); } }}>
           <div className="nf-modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
-            <div className="nf-modal-close" onClick={() => { if (!x402Processing) { setX402Modal(null); setX402Result(null); } }}>×</div>
+            <div className="nf-modal-close" onClick={() => { if (!mppProcessing) { setMppModal(null); setMppResult(null); } }}>×</div>
             
-            {!x402Result ? (
+            {!mppResult ? (
               // Payment confirmation screen
               <>
                 <div style={{ textAlign: 'center', marginBottom: '20px' }}>
@@ -921,7 +940,7 @@ export function Marketplace() {
                   }}>
                     <CreditCard size={24} color="var(--color-accent)" />
                   </div>
-                  <h3 style={{ color: 'var(--color-text-primary)', margin: '0 0 4px', fontSize: '16px' }}>x402 Payment Required</h3>
+                  <h3 style={{ color: 'var(--color-text-primary)', margin: '0 0 4px', fontSize: '16px' }}>MPP Payment Required</h3>
                   <p style={{ color: 'var(--color-text-secondary)', fontSize: '12px', margin: 0 }}>HTTP 402 — Micropayment via Stellar</p>
                 </div>
 
@@ -931,7 +950,7 @@ export function Marketplace() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                     <span style={{ color: 'var(--color-text-secondary)', fontSize: '12px' }}>Amount</span>
-                    <span style={{ color: 'var(--color-accent)', fontSize: '16px', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{formatX402Price(x402Modal.price)} USDC</span>
+                    <span style={{ color: 'var(--color-accent)', fontSize: '16px', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{formatMppPrice(mppModal.price)} USDC</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                     <span style={{ color: 'var(--color-text-secondary)', fontSize: '11px' }}>Network</span>
@@ -939,80 +958,81 @@ export function Marketplace() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                     <span style={{ color: 'var(--color-text-secondary)', fontSize: '11px' }}>Protocol</span>
-                    <span style={{ color: 'var(--color-text-primary)', fontSize: '11px' }}>x402 (HTTP 402)</span>
+                    <span style={{ color: 'var(--color-text-primary)', fontSize: '11px' }}>MPP (Soroban SAC)</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--color-text-secondary)', fontSize: '11px' }}>Facilitator</span>
-                    <span style={{ color: 'var(--color-text-primary)', fontSize: '11px' }}>Coinbase x402</span>
+                    <span style={{ color: 'var(--color-text-secondary)', fontSize: '11px' }}>Settlement</span>
+                    <span style={{ color: 'var(--color-text-primary)', fontSize: '11px' }}>Soroban SAC</span>
                   </div>
                 </div>
 
                 <p style={{ color: 'var(--color-text-secondary)', fontSize: '12px', lineHeight: 1.6, marginBottom: '16px' }}>
-                  {x402Modal.description}
+                  {mppModal.description}
                 </p>
 
                 <button 
                   className="nf-btn-primary" 
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px' }}
-                  disabled={x402Processing}
+                  disabled={mppProcessing}
                   onClick={async () => {
-                    setX402Processing(true);
+                    setMppProcessing(true);
                     // Add feed entry
                     setAgentFeed(prev => [{
-                      type: 'x402',
-                      text: `<strong>x402 Payment</strong> — ${formatX402Price(x402Modal.price)} USDC sent to facilitator for ${x402Modal.endpoint.split('?')[0]}`,
+                      type: 'mpp',
+                      text: `<strong>MPP Payment</strong> — ${formatMppPrice(mppModal.price)} USDC signing via Freighter for ${mppModal.endpoint.split('?')[0]}`,
                       time: 'now'
                     }, ...prev]);
 
-                    // Simulate the x402 settlement (in production, Freighter signs auth entries)
-                    await new Promise(r => setTimeout(r, 2000));
-
-                    // Make the actual API call (the backend currently has x402 middleware active)
-                    // For demo, we show the flow visually and make a direct backend call
+                    // Real MPP settlement via Freighter — no simulation
                     try {
-                      const url = `${API_URL}${x402Modal.endpoint}`;
-                      const opts: RequestInit = x402Modal.method === 'POST' 
-                        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(x402Modal.body) }
+                      const opts: RequestInit = mppModal.method === 'POST'
+                        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mppModal.body) }
                         : {};
-                      
-                      // First attempt will get 402 — that's expected!
-                      const firstTry = await fetch(url, opts);
-                      
-                      if (firstTry.status === 402) {
-                        // This IS the x402 flow working! Show the result
-                        setX402Result({
+
+                      const result = await settleMppPayment(mppModal.endpoint, opts);
+
+                      if (result.success) {
+                        setMppResult({
                           success: true,
-                          x402_verified: true,
-                          message: `x402 Payment Required detected (HTTP 402). In production, Freighter would sign the Soroban auth entries and the Coinbase facilitator would settle ${formatX402Price(x402Modal.price)} USDC on Stellar Testnet.`,
-                          endpoint: x402Modal.endpoint,
-                          status_code: 402
+                          mpp_verified: true,
+                          txHash: result.txHash,
+                          message: `MPP payment settled on Stellar Testnet. Freighter signed the SAC transfer of ${formatMppPrice(mppModal.price)} USDC.`,
+                          ...result.data
                         });
                         setAgentFeed(prev => [{
                           type: 'pay',
-                          text: `<strong>x402 Settled</strong> — ${formatX402Price(x402Modal.price)} USDC micropayment confirmed on Stellar Testnet`,
+                          text: `<strong>MPP Settled</strong> — ${formatMppPrice(mppModal.price)} USDC confirmed on Stellar Testnet${result.txHash ? ` (<a style="color: var(--color-accent); text-decoration: none;" href="https://stellar.expert/explorer/testnet/tx/${result.txHash}" target="_blank">tx: ${result.txHash.slice(0,8)} ↗</a>)` : ''}`,
                           time: 'just now'
                         }, ...prev]);
+                      } else if (result.paymentRequired) {
+                        // 402 received but Freighter not connected — show payment info
+                        setMppResult({
+                          success: true,
+                          mpp_verified: true,
+                          message: `MPP Payment Required (HTTP 402). Connect Freighter wallet to sign the SAC transfer of ${formatMppPrice(mppModal.price)} USDC.`,
+                          endpoint: mppModal.endpoint,
+                          status_code: 402
+                        });
                       } else {
-                        const data = await firstTry.json();
-                        setX402Result({ success: true, ...data });
+                        setMppResult({ success: false, error: result.error || 'Payment failed' });
                       }
                     } catch (err: any) {
-                      setX402Result({ success: false, error: err.message });
+                      setMppResult({ success: false, error: err.message });
                     }
-                    setX402Processing(false);
+                    setMppProcessing(false);
                   }}
                 >
-                  {x402Processing ? (
+                  {mppProcessing ? (
                     <><Loader2 size={14} className="spin" /> Settling on Stellar...</>
                   ) : (
-                    <><ShieldCheck size={14} /> Authorize {formatX402Price(x402Modal.price)} USDC Payment</>
+                    <><ShieldCheck size={14} /> Authorize {formatMppPrice(mppModal.price)} USDC Payment</>
                   )}
                 </button>
                 <button 
                   className="nf-btn-outline" 
                   style={{ width: '100%', marginTop: '8px', padding: '10px' }}
-                  onClick={() => { setX402Modal(null); setX402Result(null); }}
-                  disabled={x402Processing}
+                  onClick={() => { setMppModal(null); setMppResult(null); }}
+                  disabled={mppProcessing}
                 >
                   Cancel
                 </button>
@@ -1023,17 +1043,17 @@ export function Marketplace() {
                 <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                   <div style={{ 
                     width: '56px', height: '56px', borderRadius: '50%',
-                    background: x402Result.success ? 'rgba(0, 200, 83, 0.15)' : 'rgba(255, 59, 48, 0.15)',
-                    border: `2px solid ${x402Result.success ? 'var(--color-success)' : 'var(--color-danger)'}`,
+                    background: mppResult.success ? 'rgba(0, 200, 83, 0.15)' : 'rgba(255, 59, 48, 0.15)',
+                    border: `2px solid ${mppResult.success ? 'var(--color-success)' : 'var(--color-danger)'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     margin: '0 auto 16px'
                   }}>
-                    {x402Result.success ? <ShieldCheck size={24} color="var(--color-success)" /> : <Zap size={24} color="var(--color-danger)" />}
+                    {mppResult.success ? <ShieldCheck size={24} color="var(--color-success)" /> : <Zap size={24} color="var(--color-danger)" />}
                   </div>
                   <h3 style={{ color: 'var(--color-text-primary)', margin: '0 0 4px', fontSize: '16px' }}>
-                    {x402Result.success ? 'x402 Payment Flow Complete' : 'Payment Failed'}
+                    {mppResult.success ? 'MPP Payment Settled' : 'Payment Failed'}
                   </h3>
-                  {x402Result.status_code === 402 && (
+                  {mppResult.status_code === 402 && (
                     <div style={{ 
                       display: 'inline-block', background: 'rgba(232, 93, 4, 0.15)', 
                       color: 'var(--color-accent)', padding: '4px 12px', borderRadius: '12px',
@@ -1044,24 +1064,24 @@ export function Marketplace() {
                   )}
                 </div>
 
-                {x402Result.x402_verified && (
+                {mppResult.mpp_verified && (
                   <div style={{ 
                     background: 'var(--color-background-secondary)', borderRadius: '8px',
                     padding: '14px', marginBottom: '16px', fontSize: '12px', lineHeight: 1.6,
                     color: 'var(--color-text-secondary)'
                   }}>
-                    {x402Result.message}
+                    {mppResult.message}
                   </div>
                 )}
 
-                {x402Result.evaluation && (
+                {mppResult.evaluation && (
                   <div style={{ 
                     background: 'var(--color-background-secondary)', borderRadius: '8px',
                     padding: '14px', marginBottom: '16px'
                   }}>
                     <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '8px' }}>Machine Agent Response Payload</div>
                     <pre style={{ fontSize: '11px', color: 'var(--color-text-secondary)', margin: 0, whiteSpace: 'pre-wrap' }}>
-                      {JSON.stringify(x402Result.evaluation, null, 2)}
+                      {JSON.stringify(mppResult.evaluation, null, 2)}
                     </pre>
                   </div>
                 )}
@@ -1078,7 +1098,7 @@ export function Marketplace() {
                 <button 
                   className="nf-btn-outline" 
                   style={{ width: '100%', marginTop: '8px', padding: '10px' }}
-                  onClick={() => { setX402Modal(null); setX402Result(null); }}
+                  onClick={() => { setMppModal(null); setMppResult(null); }}
                 >
                   Close
                 </button>

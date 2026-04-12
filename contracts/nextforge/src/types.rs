@@ -33,6 +33,8 @@ pub struct Order {
     pub escrow_amount: i128,
     pub deposit_released: bool,
     pub created_at: u64,
+    pub timelock_deadline: u64,
+    pub max_spend_limit: i128,
 }
 
 #[contracttype]
