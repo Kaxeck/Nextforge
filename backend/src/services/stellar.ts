@@ -79,8 +79,13 @@ export async function verifyMachineOnChain(machineId: string) {
             console.log("✅ Verification tx sent:", sendResult.hash);
             
             // Success: Update local DB cache as verified
-            const db = getDb();
-            db.prepare(`UPDATE machines_cache SET status = 'verified' WHERE id = ?`).run(machineId);
+            try {
+                const db = getDb();
+                db.prepare(`UPDATE machines_cache SET status = 'verified' WHERE id = ?`).run(machineId);
+            } catch (dbErr) {
+                console.warn(`⚠️ Blockchain verification succeeded, but local cache update failed: ${(dbErr as any).message}`);
+                // We return true because the on-chain goal was achieved
+            }
             return true;
 
         } catch (error) {
