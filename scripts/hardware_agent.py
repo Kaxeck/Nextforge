@@ -75,13 +75,22 @@ def loop_agent(machine_id):
     while True:
         try:
             # 1. Send Heartbeat 
-            hb = requests.post(f"{NEXTFORGE_URL}/api/hardware/heartbeat", json={"machine_id": machine_id})
+            print(f"📡 Sending heartbeat to {NEXTFORGE_URL}...")
+            hb = requests.post(
+                f"{NEXTFORGE_URL}/api/hardware/heartbeat", 
+                json={"machine_id": machine_id},
+                timeout=10
+            )
             if hb.status_code != 200:
                 print(f"[-] Heartbeat Error {hb.status_code}: {hb.text}")
-            
+            else:
+                print("✅ Heartbeat accepted.")
             
             # 2. Poll for MPP-Paid Jobs
-            response = requests.get(f"{NEXTFORGE_URL}/api/hardware/poll?machine_id={machine_id}")
+            response = requests.get(
+                f"{NEXTFORGE_URL}/api/hardware/poll?machine_id={machine_id}",
+                timeout=10
+            )
             data = response.json()
             
             if data.get("has_job"):
