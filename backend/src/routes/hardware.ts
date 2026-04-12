@@ -52,7 +52,7 @@ router.get('/poll', (req: Request, res: Response) => {
         const pendingJob = db.prepare("SELECT * FROM hardware_jobs WHERE machine_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT 1").get(machine_id) as any;
         
         if (pendingJob) {
-            db.prepare('UPDATE hardware_jobs SET status = "executing" WHERE id = ?').run(pendingJob.id);
+            db.prepare("UPDATE hardware_jobs SET status = 'executing' WHERE id = ?").run(pendingJob.id);
             return res.json({ success: true, has_job: true, job: pendingJob, ping_required: pingRequired });
         }
         

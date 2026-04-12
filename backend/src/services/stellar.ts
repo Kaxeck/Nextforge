@@ -228,23 +228,33 @@ export async function startOrderOnChain(orderId: string) {
     const contract = new Contract(CONTRACT_ID);
 
     try {
-        console.log(`📡 Sending start_order(${orderId}) to Soroban...`);
-        const sourceAccount = await server.getAccount(adminKeypair.publicKey());
-        let tx = new TransactionBuilder(sourceAccount, { fee: "15000", networkPassphrase: NETWORK_PASSPHRASE })
-            .addOperation(contract.call('start_order', nativeToScVal(orderId, { type: 'string' })))
-            .setTimeout(30).build();
+    let retryCount = 0;
+    while (retryCount < 3) {
+        try {
+            console.log(`📡 Sending start_order(${orderId}) to Soroban (Attempt ${retryCount + 1})...`);
+            const sourceAccount = await server.getAccount(adminKeypair.publicKey());
+            let tx = new TransactionBuilder(sourceAccount, { fee: "15000", networkPassphrase: NETWORK_PASSPHRASE })
+                .addOperation(contract.call('start_order', nativeToScVal(orderId, { type: 'string' })))
+                .setTimeout(30).build();
 
-        const simulated = await server.simulateTransaction(tx);
-        if (!rpc.Api.isSimulationSuccess(simulated)) {
-            throw new Error(`Start Order Simulation Failed`);
+            const simulated = await server.simulateTransaction(tx);
+            if (rpc.Api.isSimulationSuccess(simulated)) {
+                let preparedTx = await server.prepareTransaction(tx);
+                preparedTx.sign(adminKeypair);
+                const sendResult = await server.sendTransaction(preparedTx);
+                
+                if (sendResult.status === "ERROR") throw new Error(`Submission failed.`);
+                return true;
+            }
+        } catch (innerE) {
+            console.warn(`⚠️ Simulation attempt ${retryCount + 1} failed, retrying in 2s...`);
         }
-
-        let preparedTx = await server.prepareTransaction(tx);
-        preparedTx.sign(adminKeypair);
-        const sendResult = await server.sendTransaction(preparedTx);
         
-        if (sendResult.status === "ERROR") throw new Error(`Submission failed.`);
-        return true;
+        retryCount++;
+        await new Promise(r => setTimeout(r, 2000)); // Wait for propagation
+    }
+    
+    throw new Error(`Start Order Simulation Failed after retries`);
     } catch (e) {
         console.error("❌ Failed to start_order on chain:", e);
         return false;
