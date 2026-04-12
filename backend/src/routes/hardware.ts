@@ -12,7 +12,10 @@ router.post('/heartbeat', (req: Request, res: Response) => {
         }
         
         const db = getDb();
-        db.prepare('UPDATE machines_cache SET last_heartbeat = CURRENT_TIMESTAMP WHERE id = ?').run(machine_id);
+        const now = new Date().toISOString(); 
+        const result = db.prepare('UPDATE machines_cache SET last_heartbeat = ? WHERE id = ?').run(now, machine_id);
+        
+        console.log(`📡 HB Sync: Machine ${machine_id} updated at ${now}. Rows affected: ${result.changes}`);
         
         res.json({ success: true });
     } catch (error) {

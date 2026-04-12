@@ -22,9 +22,9 @@ router.get('/machines', (req: Request, res: Response) => {
         const processedMachines = machines.map((m: any) => {
             let isOnline = false;
             if (m.last_heartbeat) {
-                // SQLite returns YYYY-MM-DD HH:MM:SS (UTC). Convert to valid JS Date.
-                const hb = new Date(m.last_heartbeat.replace(' ', 'T') + 'Z').getTime();
-                if (now - hb < 8000) { // 8 seconds threshold (Down from 15s for better responsiveness)
+                // Parse standard ISO date string
+                const hb = new Date(m.last_heartbeat).getTime();
+                if (now - hb < 8000) { // 8 seconds threshold 
                     isOnline = true;
                 }
             }
