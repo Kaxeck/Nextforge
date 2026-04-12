@@ -17,6 +17,7 @@ interface Machine {
   ai_notes: string;
   owner?: string;
   last_heartbeat?: string;
+  is_online?: boolean;
 }
 
 interface AgentFeedEntry {
@@ -172,7 +173,7 @@ export function Marketplace() {
                    No active agents found matching criteria.
                 </div>
               ) : filteredMachines.map((m) => {
-                const isOffline = m.last_heartbeat ? (Date.now() - new Date(m.last_heartbeat + 'Z').getTime() > 10000) : true;
+                const isOffline = !m.is_online;
                 
                 return (
                 <div

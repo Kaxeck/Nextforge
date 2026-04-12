@@ -62,7 +62,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const rawMachines = db.prepare('SELECT id, machine_type, reputation, price, materials, location, status, last_heartbeat FROM machines_cache').all();
       const now = Date.now();
       const machines = rawMachines.map((m: any) => {
-          const isOffline = m.last_heartbeat ? (now - new Date(m.last_heartbeat + 'Z').getTime() > 10000) : true;
+          let isOnline = false;
+          if (m.last_heartbeat) {
+              const hb = new Date(m.last_heartbeat.replace(' ', 'T') + 'Z').getTime();
+              if (now - hb < 15000) isOnline = true;
+          }
           return {
               id: m.id,
               type: m.machine_type,
@@ -70,7 +74,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               price: m.price,
               materials: m.materials,
               status: m.status,
-              power: isOffline ? 'OFFLINE_DISCONNECTED' : 'ONLINE_ACTIVE'
+              power: isOnline ? 'ONLINE_ACTIVE' : 'OFFLINE_DISCONNECTED'
           };
       });
       return {

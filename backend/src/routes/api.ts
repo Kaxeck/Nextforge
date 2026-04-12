@@ -17,7 +17,21 @@ router.get('/machines', (req: Request, res: Response) => {
             machines = db.prepare('SELECT * FROM machines_cache').all();
         }
 
-        res.json({ success: true, data: machines });
+        // Server-side Online/Offline calculation (Avoids browser clock drift issues)
+        const now = Date.now();
+        const processedMachines = machines.map((m: any) => {
+            let isOnline = false;
+            if (m.last_heartbeat) {
+                // SQLite returns YYYY-MM-DD HH:MM:SS (UTC). Convert to valid JS Date.
+                const hb = new Date(m.last_heartbeat.replace(' ', 'T') + 'Z').getTime();
+                if (now - hb < 15000) { // 15 seconds threshold
+                    isOnline = true;
+                }
+            }
+            return { ...m, is_online: isOnline };
+        });
+
+        res.json({ success: true, data: processedMachines });
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, error: "Database error" });

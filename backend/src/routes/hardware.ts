@@ -30,7 +30,7 @@ router.get('/poll', (req: Request, res: Response) => {
         }
         
         const db = getDb();
-        const pendingJob = db.prepare('SELECT * FROM hardware_jobs WHERE machine_id = ? AND status = "pending" ORDER BY created_at ASC LIMIT 1').get(machine_id) as any;
+        const pendingJob = db.prepare("SELECT * FROM hardware_jobs WHERE machine_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT 1").get(machine_id) as any;
         
         if (pendingJob) {
             // Mark it as executing so we don't send it twice
