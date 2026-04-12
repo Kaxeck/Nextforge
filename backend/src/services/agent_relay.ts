@@ -180,7 +180,7 @@ export async function autonomousMachineSearch(buyerPrompt: string, machines: any
     try {
         const now = Date.now();
         const machineDataString = machines.map(m => {
-            const isOffline = m.last_heartbeat ? (now - new Date(m.last_heartbeat + 'Z').getTime() > 60000) : true;
+            const isOffline = m.last_heartbeat ? (now - new Date(m.last_heartbeat + 'Z').getTime() > 10000) : true;
             const powerState = isOffline ? 'OFFLINE_DISCONNECTED' : 'ONLINE_ACTIVE';
             return `ID: ${m.id} | Type: ${m.machine_type} | Rep: ${m.reputation}/100 | Price: ${m.price} | Materials: ${m.materials} | Loc: ${m.location} | Verification: ${m.status} | Power: ${powerState}`;
         }).join("\n");

@@ -62,7 +62,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const rawMachines = db.prepare('SELECT id, machine_type, reputation, price, materials, location, status, last_heartbeat FROM machines_cache').all();
       const now = Date.now();
       const machines = rawMachines.map((m: any) => {
-          const isOffline = m.last_heartbeat ? (now - new Date(m.last_heartbeat + 'Z').getTime() > 60000) : true;
+          const isOffline = m.last_heartbeat ? (now - new Date(m.last_heartbeat + 'Z').getTime() > 10000) : true;
           return {
               id: m.id,
               type: m.machine_type,

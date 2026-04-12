@@ -111,16 +111,22 @@ export function Marketplace() {
   };
 
   useEffect(() => {
-    fetch(`${API_URL}/machines`)
-      .then(res => res.json())
-      .then(json => {
-        if (json.success) setMachines(json.data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Error fetching machines:", err);
-        setLoading(false);
-      });
+    const fetchMachines = () => {
+      fetch(`${API_URL}/machines`)
+        .then(res => res.json())
+        .then(json => {
+          if (json.success) setMachines(json.data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error("Error fetching machines:", err);
+          setLoading(false);
+        });
+    };
+
+    fetchMachines();
+    const iv = setInterval(fetchMachines, 5000);
+    return () => clearInterval(iv);
   }, []);
 
   const filteredMachines = machines.filter(m => {
@@ -166,7 +172,7 @@ export function Marketplace() {
                    No active agents found matching criteria.
                 </div>
               ) : filteredMachines.map((m) => {
-                const isOffline = m.last_heartbeat ? (Date.now() - new Date(m.last_heartbeat + 'Z').getTime() > 60000) : true;
+                const isOffline = m.last_heartbeat ? (Date.now() - new Date(m.last_heartbeat + 'Z').getTime() > 10000) : true;
                 
                 return (
                 <div
