@@ -204,6 +204,10 @@ export function Marketplace() {
                         <span className="nf-tag" style={{ color: 'var(--color-success)', borderColor: 'var(--color-success)' }}>✓ AI Verified</span>
                       ) : m.status === 'pending_physical_verify' ? (
                         <span className="nf-tag" style={{ color: 'var(--color-warn)', borderColor: 'var(--color-warn)' }}>⚠ Verification Bounty</span>
+                      ) : m.status === 'offline' ? (
+                        <span className="nf-tag" style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>❌ Offline</span>
+                      ) : m.status === 'pending_maintenance' ? (
+                        <span className="nf-tag" style={{ color: 'var(--color-warn)', borderColor: 'var(--color-warn)' }}>🔧 Maintenance Req</span>
                       ) : (
                         <span className="nf-tag">Analyzing...</span>
                       )}
@@ -212,8 +216,8 @@ export function Marketplace() {
                   <div className="nf-machine-right">
                     <div className="nf-price">{displayPrice(m.price)}</div>
                     <div className="nf-price-label">USDC / cycle</div>
-                    <div className={`nf-badge ${m.status === 'verified' ? 'badge-idle' : 'badge-maintenance'}`}>
-                       {m.status === 'verified' ? 'idle' : 'pending'}
+                    <div className={`nf-badge ${m.status === 'verified' ? 'badge-idle' : m.status === 'offline' ? 'badge-offline' : 'badge-maintenance'}`}>
+                       {m.status === 'verified' ? 'idle' : m.status === 'offline' ? 'offline' : m.status === 'pending_maintenance' ? 'repairing' : 'pending'}
                     </div>
                   </div>
                 </div>

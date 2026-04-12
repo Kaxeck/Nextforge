@@ -16,7 +16,25 @@ router.get('/machines', (req: Request, res: Response) => {
         } else {
             machines = db.prepare('SELECT * FROM machines_cache').all();
         }
-        res.json({ success: true, data: machines });
+
+        // Dynamically compute 'offline' status based on last_heartbeat
+        const now = Date.now();
+        const processedMachines = machines.map((m: any) => {
+            if (m.status === 'verified') {
+                if (!m.last_heartbeat) {
+                    m.status = 'offline';
+                } else {
+                    // SQLite CURRENT_TIMESTAMP is UTC (YYYY-MM-DD HH:MM:SS). Append 'Z' to parse correctly.
+                    const heartbeatTime = new Date(m.last_heartbeat + 'Z').getTime();
+                    if (now - heartbeatTime > 60000) { // 60 seconds stale = offline
+                        m.status = 'offline';
+                    }
+                }
+            }
+            return m;
+        });
+
+        res.json({ success: true, data: processedMachines });
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, error: "Database error" });
