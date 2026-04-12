@@ -40,6 +40,10 @@ router.get('/poll', (req: Request, res: Response) => {
         }
         
         const db = getDb();
+        const now = new Date().toISOString();
+
+        // Update heartbeat on every poll to keep the machine 'LIVE' in the UI
+        db.prepare('UPDATE machines_cache SET last_heartbeat = ? WHERE id = ?').run(now, machine_id);
         
         // Check if a ping is requested for this machine
         const machine = db.prepare('SELECT ping_pending FROM machines_cache WHERE id = ?').get(machine_id) as any;

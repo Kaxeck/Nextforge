@@ -24,8 +24,8 @@ router.get('/machines', (req: Request, res: Response) => {
             if (m.last_heartbeat) {
                 const hb = new Date(m.last_heartbeat).getTime();
                 const diff = now - hb;
-                // Allow up to 25s lag (for 10s polling + network margin) and 5s of future-drift
-                if (diff < 25000 && diff > -5000) { 
+                // Allow up to 30s lag (for 10s polling + network margin) and 5s of future-drift
+                if (diff < 30000 && diff > -5000) { 
                     isOnline = true;
                 }
                 console.log(`📡 UI Check: Machine ${m.id} | Diff: ${diff}ms | Online: ${isOnline}`);

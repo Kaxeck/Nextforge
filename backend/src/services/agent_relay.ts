@@ -182,8 +182,9 @@ export async function autonomousMachineSearch(buyerPrompt: string, machines: any
         const machineDataString = machines.map(m => {
             let isOnline = false;
             if (m.last_heartbeat) {
-                const hb = new Date(m.last_heartbeat.replace(' ', 'T') + 'Z').getTime();
-                if (now - hb < 15000) isOnline = true;
+                const hb = new Date(m.last_heartbeat).getTime();
+                const diff = now - hb;
+                if (diff < 30000 && diff > -5000) isOnline = true;
             }
             const powerState = isOnline ? 'ONLINE_ACTIVE' : 'OFFLINE_DISCONNECTED';
             return `ID: ${m.id} | Type: ${m.machine_type} | Rep: ${m.reputation}/100 | Price: ${m.price} | Materials: ${m.materials} | Loc: ${m.location} | Verification: ${m.status} | Power: ${powerState}`;
@@ -233,6 +234,7 @@ export async function autonomousMachineSearch(buyerPrompt: string, machines: any
         
     } catch (e) {
         console.error("Autonomous search failed", e);
-        return { machineId: machines[0]?.id || null, reasoning: "Fell back to default node due to network instability." };
+        // NO FALLBACK: Return null so the user knows no ACTIVE machine was found
+        return { machineId: null, reasoning: "Buyer Agent search system encountered an internal error. Please try again." };
     }
 }
