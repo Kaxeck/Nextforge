@@ -280,9 +280,9 @@ export async function completeCycleOnChain(orderId: string) {
     const contract = new Contract(CONTRACT_ID);
 
     let retryCount = 0;
-    while (retryCount < 3) {
+    while (retryCount < 5) {
         try {
-            console.log(`📡 Sending complete_cycle(${orderId}) to Soroban (Attempt ${retryCount + 1})...`);
+            console.log(`📡 Sending complete_cycle(${orderId}) to Soroban (Attempt ${retryCount + 1}/5)...`);
             const sourceAccount = await server.getAccount(adminKeypair.publicKey());
             let tx = new TransactionBuilder(sourceAccount, { fee: "15000", networkPassphrase: NETWORK_PASSPHRASE })
                 .addOperation(contract.call('complete_cycle', nativeToScVal(orderId, { type: 'string' })))
@@ -311,9 +311,9 @@ export async function completeCycleOnChain(orderId: string) {
         }
         
         retryCount++;
-        await new Promise(r => setTimeout(r, 2000)); 
+        await new Promise(r => setTimeout(r, 3000)); // Increased wait to 3s
     }
     
-    throw new Error(`Complete Cycle Simulation Failed after retries for ${orderId}`);
+    throw new Error(`Complete Cycle Simulation Failed after 5 retries for ${orderId}`);
 }
 
