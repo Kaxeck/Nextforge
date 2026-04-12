@@ -243,18 +243,28 @@ export async function startOrderOnChain(orderId: string) {
                 preparedTx.sign(adminKeypair);
                 const sendResult = await server.sendTransaction(preparedTx);
                 
+                if (sendResult.hash) {
+                    console.log(`✅ start_order(${orderId}) successful! Tx: ${sendResult.hash}`);
+                    return true;
+                }
                 if (sendResult.status === "ERROR") throw new Error(`Submission failed.`);
-                return true;
+            } else {
+                const errorBody = (simulated as any).error || (simulated as any).result?.error || "Unknown Simulation Error";
+                console.error(`❌ start_order simulation failure [${orderId}]:`, errorBody);
+                // Also log events if available
+                if ((simulated as any).events) {
+                    console.log("📜 Soroban Debug Events:", JSON.stringify((simulated as any).events, null, 2));
+                }
             }
         } catch (innerE) {
-            console.warn(`⚠️ Simulation attempt ${retryCount + 1} failed, retrying in 2s...`);
+            console.warn(`⚠️ start_order attempt ${retryCount + 1} experienced an exception:`, (innerE as any).message);
         }
         
         retryCount++;
-        await new Promise(r => setTimeout(r, 2000)); // Wait for propagation
+        await new Promise(r => setTimeout(r, 2000)); 
     }
     
-    throw new Error(`Start Order Simulation Failed after retries`);
+    throw new Error(`Start Order Simulation Failed after retries for ${orderId}`);
     } catch (e) {
         console.error("❌ Failed to start_order on chain:", e);
         return false;
