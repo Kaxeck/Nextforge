@@ -20,9 +20,10 @@ NextForge relies on a symmetric AI architecture negotiating trustlessly via **MP
 
 1. **The Buyer Agent (e.g. Claude via MCP):** Searches the NextForge network for machines that match a manufacturing request (material, capability, location, price).
 2. **The 402 Barrier:** The protocol presents an HTTP `402 Payment Required` barrier. The Buyer Agent must construct a Soroban SAC micro-payment ($0.001 USDC) to access the hardware.
-3. **The Machine Agent (powered by Gemini 2.5 Flash):** Acts as the hardware's internal brain. It autonomously reads the payload, evaluates physics/safety limits based on market data, and rejects or approves the job.
-4. **The Escrow Lock:** If approved, the payment is locked in a Soroban escrow contract, and the job payload is dispatched directly to the physical machine over USB/Serial.
-5. **Streaming Settlement:** As the machine executes, it natively releases the escrowed funds to the hardware owner's wallet via per-cycle MPP log streaming with a 1% protocol fee.
+3. **The AI Verification Infiltration Shield:** When a vendor registers a new machine on the blockchain, the central NextForge relay triggers a Webhook. An onboard Gemini 2.5 Flash agent autonomously audits the newly registered machine profile (materials, price, hardware type, location). If it detects a legitimate industrial machine, it sets a baseline reputation. If it detects a scam configuration, it flags the machine and warns the network.
+4. **The Machine Agent:** Acts as the hardware's internal brain. It autonomously reads incoming job payloads, evaluates physics/safety limits based on market data, and rejects or approves the job.
+5. **The Escrow Lock:** If approved, the full payment is locked in a Soroban escrow contract, and the job payload is dispatched directly to the physical machine over USB/Serial.
+6. **Streaming Settlement:** As the machine executes, it natively releases the escrowed funds to the hardware owner's wallet via per-cycle MPP log streaming with a 1% protocol fee.
 
 All of this happens without a single human click.
 
@@ -86,6 +87,7 @@ Being transparent about the current state of the project:
 |---|---|
 | Freighter wallet signing | ✅ Real — opens Freighter, signs XDR, submits to Testnet |
 | Soroban contract calls (register/verify/escrow) | ✅ Real — deployed on Testnet with `simulateTransaction` + `prepareTransaction` |
+| AI Hardware Verification Webhooks | ✅ Real — Gemini natively audits new machines upon registration via Webhooks |
 | MPP middleware on endpoints | ✅ Real — `@stellar/mpp` native Soroban SAC — no facilitator needed |
 | MPP frontend settlement via Freighter | ✅ Real — Soroban SAC `token.transfer` + Freighter signing |
 | MCP agent-to-Soroban escrow | ✅ Real — invokes `create_order` on the smart contract |
@@ -95,6 +97,8 @@ Being transparent about the current state of the project:
 | Hardware USB/Serial bridge | ✅ Real — `pyserial` detects ports and sends G-Code |
 | Contract tests | ✅ 2/2 passing — `test_register_machine` + `test_create_and_start_order` |
 | Analytics dashboard | ✅ Real — charts use real API data, volume, and machine counts |
+| AI Self-Management (Pricing, Maintenance, Resources) | 🚧 Partial — Backend evaluators & Smart Contracts (update_price, complete_maintenance) are fully built, but hardware sensor-loop trigger is planned for v2 |
+| Bounties System | 🚧 Mocked (UI only) — Full on-chain bounty claiming planned for v2 |
 
 ---
 
@@ -103,7 +107,7 @@ Being transparent about the current state of the project:
 The contract (`contracts/nextforge/src/lib.rs`) implements:
 
 - **Machine Module:** `register_machine`, `get_machine`, `list_machines`, `verify_machine`, `update_price`, `set_availability`
-- **Escrow Module:** `create_order`, `start_order`, `complete_cycle`, `open_dispute`, `get_order` — full lifecycle with token transfer, 50% deposit release, per-cycle payouts, and automated completion.
+- **Escrow Module:** `create_order`, `start_order`, `complete_cycle`, `open_dispute`, `get_order` — full lifecycle with precise **SLA Timelocks** (jobs expire automatically to refund buyers), **Maximum Spend Limits** (to protect AI budgets), 50% deposit release, per-cycle payouts, and automated completion.
 - **Reputation Module:** `add_review`, `get_reviews` — on-chain review storage with rating, reviewer address, and comment hash.
 - **Maintenance Module:** `set_maintenance_config`, `complete_maintenance` — autonomous repair triggers when reputation falls below threshold.
 
@@ -172,12 +176,16 @@ NextForge includes an MCP (Model Context Protocol) server so Claude can act as y
 4. Go to `http://localhost:5173/marketplace`, click on your machine, and click **Execute Stream**.
 5. Freighter will prompt you to sign the on-chain Escrow. Once signed, the UI relays the job to the database, where the Python script will instantly pick it up, turning on the physical printer, and the UI will stream live complete_cycle payments as the G-Code progresses.
 
+### 3. 24/7 Automatic Testing System
+We have deployed a headless Background Worker running `hardware_agent.py M-7098`. This acts as an always-on cloud-simulated node (`M-7098`). You can go to the live Marketplace, click on this machine, and execute a job at any time. You will see the entire payment protocol process the Escrow and cycle-streaming natively.
+
 ---
 
 
 
 ## Security
 
+- **SLA Timelocks & Max Spend:** AI Agents operate on strict budgets. NextForge Escrows enforce `timelock_deadline` (time limit for the machine to finish before forced refund) and `max_spend_limit` directly at the Soroban tier to prevent malicious machines from price-gouging agents.
 - **No Facilitator Dependency:** NextForge's MPP implementation settles payments natively via Soroban SAC — no external facilitator service that can go offline. The HTTP 402 challenge evaluates purely on-chain state.
 - **Fail-Closed Policy:** If MPP credential verification fails, protected endpoints block access. No free bypass is possible.
 - **Soroban Simulation:** All contract invocations use `simulateTransaction` + `prepareTransaction` to compute correct footprints before submission.

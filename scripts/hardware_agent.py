@@ -5,6 +5,9 @@ import json
 import sys
 import serial
 import serial.tools.list_ports
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import os
 
 NEXTFORGE_URL = "https://nextforge.onrender.com"
 
@@ -126,6 +129,21 @@ def loop_agent(machine_id):
             
         time.sleep(5)
 
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(b'{"status": "online", "mode": "cloud_testing"}')
+    def log_message(self, format, *args):
+        pass # Suppress HTTP logs to keep terminal clean
+
+def run_health_server():
+    port = int(os.environ.get('PORT', 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    print(f"[*] Cloud Integration Health Check Server listening on port {port}")
+    server.serve_forever()
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python3 hardware_agent.py <MACHINE_ID>")
@@ -133,4 +151,7 @@ if __name__ == "__main__":
         sys.exit(1)
         
     print_header()
+    # 1. Start the health check web server in a background thread
+    threading.Thread(target=run_health_server, daemon=True).start()
+    # 2. Run the real hardware agent on the main thread
     loop_agent(sys.argv[1])
