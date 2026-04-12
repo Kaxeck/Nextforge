@@ -178,9 +178,12 @@ export async function autonomousMachineSearch(buyerPrompt: string, machines: any
     }
 
     try {
-        const machineDataString = machines.map(m => 
-            `ID: ${m.id} | Type: ${m.machine_type} | Rep: ${m.reputation}/100 | Price: ${m.price} | Materials: ${m.materials} | Loc: ${m.location} | Status: ${m.status}`
-        ).join("\n");
+        const now = Date.now();
+        const machineDataString = machines.map(m => {
+            const isOffline = m.last_heartbeat ? (now - new Date(m.last_heartbeat + 'Z').getTime() > 60000) : true;
+            const powerState = isOffline ? 'OFFLINE_DISCONNECTED' : 'ONLINE_ACTIVE';
+            return `ID: ${m.id} | Type: ${m.machine_type} | Rep: ${m.reputation}/100 | Price: ${m.price} | Materials: ${m.materials} | Loc: ${m.location} | Verification: ${m.status} | Power: ${powerState}`;
+        }).join("\n");
 
         const prompt = `
             You are the "Buyer Agent". Your human principal has given you a manufacturing request.
@@ -195,7 +198,8 @@ export async function autonomousMachineSearch(buyerPrompt: string, machines: any
             Important Rules:
             1. Only pick a machine whose 'Type' and 'Materials' actually match the request (don't pick a CNC if they want PLA 3D printing).
             2. Prefer higher reputation if pricing is similar. 
-            3. Ignore machines with 'Status' != 'verified' if possible.
+            3. CRITICAL: Never pick a machine with 'Power: OFFLINE_DISCONNECTED'. The physical machine is turned off and your job will fail.
+            4. Ignore machines with 'Verification' != 'verified' if possible.
             
             Respond strictly in this JSON format (no markdown code blocks, just raw JSON text):
             {
