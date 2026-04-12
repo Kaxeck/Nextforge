@@ -244,4 +244,21 @@ router.post('/contract/complete_cycle', async (req: Request, res: Response) => {
     }
 });
 
+// ===== LIVE ORDERS: Fetch active jobs for UI =====
+router.get('/orders', (req: Request, res: Response) => {
+    try {
+        const db = getDb();
+        const orders = db.prepare(`
+            SELECT hj.id, hj.machine_id, hj.payload, hj.status, hj.created_at,
+                   mc.machine_type, mc.price, mc.reputation
+            FROM hardware_jobs hj
+            JOIN machines_cache mc ON hj.machine_id = mc.id
+            ORDER BY hj.created_at DESC
+        `).all();
+        res.json({ success: true, data: orders });
+    } catch (e) {
+        res.status(500).json({ success: false, error: "Database error" });
+    }
+});
+
 export default router;
