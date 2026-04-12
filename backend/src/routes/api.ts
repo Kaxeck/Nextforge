@@ -24,7 +24,7 @@ router.get('/machines', (req: Request, res: Response) => {
             if (m.last_heartbeat) {
                 // SQLite returns YYYY-MM-DD HH:MM:SS (UTC). Convert to valid JS Date.
                 const hb = new Date(m.last_heartbeat.replace(' ', 'T') + 'Z').getTime();
-                if (now - hb < 15000) { // 15 seconds threshold
+                if (now - hb < 8000) { // 8 seconds threshold (Down from 15s for better responsiveness)
                     isOnline = true;
                 }
             }

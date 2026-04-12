@@ -62,6 +62,7 @@ def loop_agent(machine_id):
     ser = auto_detect_printer()
     
     print(f"\n[*] Agent Boot Sequence Complete. Bound to NextForge ID: {machine_id}")
+    print(f"[*] Targeting Server URL: {NEXTFORGE_URL}")
     
     if ser:
         print("[*] Fetching bed temps (M105)...")
