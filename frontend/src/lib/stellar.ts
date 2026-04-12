@@ -2,8 +2,13 @@ import { isAllowed, requestAccess, signTransaction } from '@stellar/freighter-ap
 // @ts-ignore
 import { Contract, rpc, TransactionBuilder, Networks, nativeToScVal, Address, scValToNative } from '@stellar/stellar-sdk';
 
-const CONTRACT_ID = "CAYKQHTZHHWHHTSDOP6LJCUNDJOADSX2BOAJACL74IBGGXMEEDHWBLFB"; 
-const RPC_URL = "https://soroban-testnet.stellar.org";
+const CONTRACT_ID = import.meta.env.VITE_SOROBAN_CONTRACT_ID; 
+
+if (!CONTRACT_ID) {
+    console.error("❌ ERROR: VITE_SOROBAN_CONTRACT_ID is not defined in environment variables!");
+}
+
+const RPC_URL = import.meta.env.VITE_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
 const server = new rpc.Server(RPC_URL);
 
 /**
