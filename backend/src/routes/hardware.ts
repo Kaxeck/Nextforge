@@ -138,4 +138,18 @@ router.get('/status_check', (req: Request, res: Response) => {
     }
 });
 
+// 6. Python agent posts status updates (e.g. "executing")
+router.post('/status_update', (req: Request, res: Response) => {
+    try {
+        const { job_id, status } = req.body;
+        if (!job_id || !status) return res.status(400).json({ error: "Missing fields" });
+        
+        const db = getDb();
+        db.prepare('UPDATE hardware_jobs SET status = ? WHERE id = ?').run(status, job_id);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false });
+    }
+});
+
 export default router;

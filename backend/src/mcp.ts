@@ -64,8 +64,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const machines = rawMachines.map((m: any) => {
           let isOnline = false;
           if (m.last_heartbeat) {
-              const hb = new Date(m.last_heartbeat.replace(' ', 'T') + 'Z').getTime();
-              if (now - hb < 15000) isOnline = true;
+              const hb = new Date(m.last_heartbeat).getTime();
+              const diff = now - hb;
+              if (diff < 30000 && diff > -5000) isOnline = true;
           }
           return {
               id: m.id,

@@ -203,8 +203,8 @@ export async function autonomousMachineSearch(buyerPrompt: string, machines: any
             Important Rules:
             1. Only pick a machine whose 'Type' and 'Materials' actually match the request (don't pick a CNC if they want PLA 3D printing).
             2. Prefer higher reputation if pricing is similar. 
-            3. CRITICAL: Never pick a machine with 'Power: OFFLINE_DISCONNECTED'. The physical machine is turned off and your job will fail.
-            4. Ignore machines with 'Verification' != 'verified' if possible.
+            3. CRITICAL: Never pick a machine with 'Power: OFFLINE_DISCONNECTED'.
+            4. If a machine matches type and materials and is 'ONLINE_ACTIVE', you SHOULD pick it even if its 'Verification' status is still pending. Prioritize functional liveness over verification history for these trial jobs.
             
             Respond strictly in this JSON format (no markdown code blocks, just raw JSON text):
             {

@@ -1040,6 +1040,16 @@ export function Marketplace() {
                           text: `<strong>MPP Settled</strong> — ${formatMppPrice(mppModal.price)} USDC confirmed on Stellar Testnet${result.txHash ? ` (<a style="color: var(--color-accent); text-decoration: none;" href="https://stellar.expert/explorer/testnet/tx/${result.txHash}" target="_blank">tx: ${result.txHash.slice(0,8)} ↗</a>)` : ''}`,
                           time: 'just now'
                         }, ...prev]);
+
+                        // LOG AI NEGOTIATION RESULT IF AVAILABLE
+                        if (result.data?.evaluation) {
+                          const evalData = result.data.evaluation;
+                          setAgentFeed(prev => [{
+                            type: 'decide',
+                            text: `<strong>Negotiation ${evalData.job_feasibility}</strong> — Machine ${evalData.machine_id}: "${evalData.ai_reasoning}"`,
+                            time: 'now'
+                          }, ...prev.slice(0, 9)]);
+                        }
                       } else if (result.paymentRequired) {
                         // 402 received but Freighter not connected — show payment info
                         setMppResult({

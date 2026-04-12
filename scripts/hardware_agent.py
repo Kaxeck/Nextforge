@@ -104,6 +104,8 @@ def poll_worker(machine_id):
             if data.get("has_job"):
                 job = data["job"]
                 print(f"\n⚠️  [POLL] PAYLOAD DETECTED! Job ID: {job['id']}")
+                # Notify server that we are starting
+                requests.post(f"{NEXTFORGE_URL}/api/hardware/status_update", json={"job_id": job["id"], "status": "executing"}, timeout=5)
                 execute_job(job)
                 
         except Exception as e:
