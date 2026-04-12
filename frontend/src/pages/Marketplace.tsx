@@ -861,7 +861,8 @@ export function Marketplace() {
                             }
                             return prev;
                           });
-                      } else if (pollJson.status === 'completed') {
+                      } else if (pollJson.status === 'completed' || (hasStartedExecuting && lastCyclePaid >= targetCycles)) {
+                         // If all cycles are paid and we are still executing, we can safely assume it's done for the UI
                          isCompleted = true;
                          setCurrentCycle(targetCycles);
                          setTotalSpent(priceNum * targetCycles);
