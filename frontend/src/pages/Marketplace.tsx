@@ -870,10 +870,12 @@ export function Marketplace() {
                             return prev;
                           });
                       } else if (pollJson.status === 'completed' || (hasStartedExecuting && lastCyclePaid >= targetCycles)) {
-                         // If all cycles are paid and we are still executing, we can safely assume it's done for the UI
                          isCompleted = true;
                          setCurrentCycle(targetCycles);
                          setTotalSpent(priceNum * targetCycles);
+                         // Force immediate cleanup here too as a safety measure
+                         setIsStreaming(false);
+                         setActiveOrderMachine(null);
                       }
                     }
                   }
@@ -890,10 +892,10 @@ export function Marketplace() {
                 }
                 
                 setIsStreaming(false);
-                setActiveOrderMachine(null); // This removes the bottom streaming panel
+                setActiveOrderMachine(null); 
                 setAgentFeed(prev => [{
-                  type: 'decide' as const,
-                  text: `<strong>Hardware Routine Complete</strong> — physical actuation confirmed. Escrow released.`,
+                  type: 'pay' as const,
+                  text: `<strong>✅ JOB SUCCESSFUL</strong> — All ${targetCycles} cycles validated on Soroban. Hardware task complete and escrow fully released.`,
                   time: 'now'
                 }, ...prev]);
               }}
