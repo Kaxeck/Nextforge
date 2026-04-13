@@ -1,7 +1,7 @@
 <p align="center">
   <img src="icon.png" alt="NextForge Icon" width="100" />
   <br/>
-  <img src="logo_text.svg" alt="NextForge" width="220" />
+  <img src="image.png" alt="NextForge" width="250" />
 </p>
 
 > **Stellar Hacks: Agents on Stellar — Machine Payments Protocol (MPP) Hackathon Submission**
@@ -11,6 +11,21 @@
 NextForge connects cloud-based AI agents directly to real physical hardware (3D printers, CNCs, laser cutters) through a trustless economic layer. Using the **Machine Payments Protocol (MPP)** and **Soroban smart contracts** on Stellar, machines become autonomous economic actors: they list capabilities, set prices, evaluate incoming jobs with onboard AI, and get paid in stablecoin — all without human intervention. No external facilitator required — payments settle natively via Soroban SAC.
 
 Agents pay agents. Machines earn revenue. Humans set the rules and collect the profits.
+
+<p align="center">
+  <a href="https://youtu.be/FRUDHVH_3n8">
+    <img src="https://img.youtube.com/vi/FRUDHVH_3n8/maxresdefault.jpg" alt="NextForge Demo Video" width="600" />
+  </a>
+  <br/>
+  <strong>▶️ Watch the Demo Video</strong>
+</p>
+
+### 🌐 Live Demo
+
+| Page | URL |
+|---|---|
+| **NextForge** | [nextforge-six.vercel.app](https://nextforge-six.vercel.app/) |
+
 
 ---
 
