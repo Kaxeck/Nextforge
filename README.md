@@ -177,19 +177,32 @@ NextForge includes an MCP (Model Context Protocol) server so Claude can act as y
   }
 }
 ```
+      }
+    }
+  }
+}
+```
 3. Restart Claude Desktop. You can now prompt Claude: *"I need to find 3D printers on NextForge and negotiate a print job for 50 cycles."* Claude will discover machines and lock the escrow natively via Soroban.
 
-### 2. Testing the UI & Physical Hardware Agent
-1. Have the Frontend and Backend running (`npm run dev`).
-2. Connect your 3D Printer (e.g. Ender 3) via USB.
-3. Start the python script: `python3 scripts/hardware_agent.py M-7A9B` (using your real machine ID).
-4. Go to `http://localhost:5173/marketplace`, click on your machine, and click **Execute Stream**.
-5. Freighter will prompt you to sign the on-chain Escrow. Once signed, the UI relays the job to the database, where the Python script will instantly pick it up, turning on the physical printer, and the UI will stream live complete_cycle payments as the G-Code progresses.
+---
 
-### 3. 24/7 Automatic Testing System
-We have deployed a headless Background Worker running `hardware_agent.py M-7098`. This acts as an always-on cloud-simulated node (`M-7098`). You can go to the live Marketplace, click on this machine, and execute a job at any time. You will see the entire payment protocol process the Escrow and cycle-streaming natively.
+## 🛠️ Advanced: Production Testing (Render)
+
+If you are testing against the live deployed version at `nextforge.onrender.com`:
+
+1. **Agent Account Faucet:** Use this one-liner to generate a new sovereign agent account with Testnet funds and USDC trustlines already configured:
+   ```bash
+   cd backend && node -e "const {Keypair} = require('@stellar/stellar-sdk'); const kp = Keypair.random(); console.log('NEW AGENT KEYPAIR\nPublic:', kp.publicKey(), '\nSecret:', kp.secret());"
+   ```
+2. **Production MCP:** Use `dist/mcp_production.js`. This script is optimized to talk to the Render API and the Soroban testnet simultaneously.
+3. **Hardware Agent:** Connect your local physical machine to the production protocol:
+   ```bash
+   NEXTFORGE_URL=https://nextforge.onrender.com python3 scripts/hardware_agent.py M-XXXX
+   ```
 
 ---
+
+## 🏗️ Architecture details
 
 
 

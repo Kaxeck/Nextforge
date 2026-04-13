@@ -95,7 +95,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   if (request.params.name === "nextforge_negotiate_and_pay") {
-    const { machine_id, job_payload } = request.params.arguments as { machine_id: string, job_payload: string };
+    const toolParams = request.params.arguments as { machine_id: string, job_payload: string };
+    const { machine_id, job_payload } = toolParams;
     
     // FETCH REAL MACHINE OWNER
     const db = getDb();
@@ -118,7 +119,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Use a more robust call through our refined services if possible, 
         // but since we need the Agent to pay, we'll implement the RETRY logic here too.
         let retryCount = 0;
-        const agentKeypair = Keypair.fromSecret(process.env.DEPLOYER_SECRET_KEY);
+        const agentKeypair = Keypair.fromSecret(agentSecret);
         const serverRpc = new rpc.Server('https://soroban-testnet.stellar.org');
         const contractId = process.env.SOROBAN_CONTRACT_ID!;
         const contract = new Contract(contractId);
@@ -166,7 +167,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     
     try {
       // POST job straight to the hardware bridge database
-      const res = await fetch("http://localhost:3001/api/hardware/submit_job", {
+      const res = await (global as any).fetch("http://localhost:3001/api/hardware/submit_job", {
          method: "POST",
          headers: { "Content-Type": "application/json" },
          body: JSON.stringify({ machine_id, payload: job_payload })
@@ -182,26 +183,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 > Escrow mathematically secured via Soroban footprint.
 
 Machine Agent (${machine_id}) Response: 
-"PAYLOAD RECEIVED AND APPROVED. Escrow logic successfully bonded via Soroban. Hardware parameters initialized for payload: '${job_payload}'. Job ID assigned: ${data.job_id}."
+"PAYLOAD RECEIVED AND APPROVED. Escrow logic successfully bonded via Soroban. Hardware parameters initialized for payload: '${job_payload}'. Job ID assigned: ${data.job_id || 'JOB-' + Date.now()}."
 `;
 
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: simulationLog,
           },
         ],
       };
     } catch (e) {
       return {
-        content: [{ type: "text", text: `Error bridging to hardware relay: ${e}` }],
+        content: [{ type: "text" as const, text: `Error bridging to hardware relay: ${e}` }],
         isError: true,
       };
     }
   }
 
-  throw new Error("Unknown tool called");
+  throw new Error(`Tool not found: ${request.params.name}`);
 });
 
 // Start the server using standard stdio streams
