@@ -45,7 +45,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (name === "nextforge_discover_machines") {
     const res = await (global as any).fetch(`${API_URL}/machines`);
     const json = await res.json();
-    return { content: [{ type: "text", text: JSON.stringify(json.machines, null, 2) }] };
+    return { content: [{ type: "text" as const, text: JSON.stringify(json.data || [], null, 2) }] };
   }
 
   if (name === "nextforge_negotiate_and_pay") {
@@ -65,7 +65,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Fetch machine price from production API
         const mRes = await (global as any).fetch(`${API_URL}/machines`);
         const mData = await mRes.json();
-        const machine = mData.machines.find((m: any) => m.id === machineId);
+        const machine = mData.data.find((m: any) => m.id === machineId);
         const budgetStroops = machine?.price || 10000000;
 
         console.error(`Negotiating for machine ${machineId} on Production Protocol...`);
