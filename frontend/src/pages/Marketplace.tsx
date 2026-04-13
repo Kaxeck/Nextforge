@@ -824,80 +824,87 @@ export function Marketplace() {
                         if (!startJson.success) {
                             throw new Error("Blockchain order activation failed (Stellar Sync Lag). Please try again in 10 seconds.");
                         }
-                    } catch (err: any) {
-                        throw new Error(`Order Activation Failure: ${err.message}`);
-                    }
 
-                    // POLL FOR COMPLETION
-                    let isCompleted = false;
-                    let lastCyclePaid = 0;
-                    let hasStartedExecuting = false;
+                        // POLL FOR COMPLETION
+                        let isCompleted = false;
+                        let lastCyclePaid = 0;
+                        let hasStartedExecuting = false;
 
-                    while (!isCompleted) {
-                      await new Promise(r => setTimeout(r, 3000));
-                      const pollRes = await fetch(`${API_URL}/hardware/status_check?job_id=${jobId}`);
-                      const pollJson = await pollRes.json();
-                      
-                      if (pollJson.status === 'executing') {
-                          if (!hasStartedExecuting) {
-                            hasStartedExecuting = true;
-                            setAgentFeed(prev => [{
-                              type: 'decide' as const,
-                              text: `<strong>Hardware Actuation Started</strong> — ${selectedMachine.id} has acknowledged the payload and begun processing.`,
-                              time: 'now'
-                            }, ...prev.slice(0, 49)]);
-                          }
-
-                          setCurrentCycle(prev => {
-                            const newCycle = Math.min(prev + 1, targetCycles);
-                            
-                            // Only trigger payment if we actually advanced a cycle and hasn't exceeded target
-                            if (newCycle > lastCyclePaid && newCycle <= targetCycles) {
-                                lastCyclePaid = newCycle;
-                                fetch(`${API_URL}/contract/complete_cycle`, {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ order_id: orderId })
-                                }).catch(console.error);
-
-                                setAgentFeed(fc => [{
-                                  type: 'mpp' as const,
-                                  text: `<strong>Flow Settlement: Cycle ${newCycle} Paid</strong> — Escrow released funds to ${selectedMachine.id} for work performed.`,
+                        while (!isCompleted) {
+                          await new Promise(r => setTimeout(r, 3000));
+                          const pollRes = await fetch(`${API_URL}/hardware/status_check?job_id=${jobId}`);
+                          const pollJson = await pollRes.json();
+                          
+                          if (pollJson.status === 'executing') {
+                              if (!hasStartedExecuting) {
+                                hasStartedExecuting = true;
+                                setAgentFeed(prev => [{
+                                  type: 'decide' as const,
+                                  text: `<strong>Hardware Actuation Started</strong> — ${selectedMachine.id} has acknowledged the payload and begun processing.`,
                                   time: 'now'
-                                }, ...fc.slice(0,49)]);
-                                setTotalSpent(ts => ts + priceNum);
-                                return newCycle;
-                            }
-                            return prev;
-                          });
-                      } else if (pollJson.status === 'completed' || (hasStartedExecuting && lastCyclePaid >= targetCycles)) {
-                         isCompleted = true;
-                         setCurrentCycle(targetCycles);
-                         setTotalSpent(priceNum * targetCycles);
-                         // Force immediate cleanup here too as a safety measure
-                         setIsStreaming(false);
-                         setActiveOrderMachine(null);
-                      }
+                                }, ...prev.slice(0, 49)]);
+                              }
+
+                              setCurrentCycle(prev => {
+                                const newCycle = Math.min(prev + 1, targetCycles);
+                                
+                                // Only trigger payment if we actually advanced a cycle and hasn't exceeded target
+                                if (newCycle > lastCyclePaid && newCycle <= targetCycles) {
+                                    lastCyclePaid = newCycle;
+                                    fetch(`${API_URL}/contract/complete_cycle`, {
+                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ order_id: orderId })
+                                    }).catch(console.error);
+
+                                    setAgentFeed(fc => [{
+                                      type: 'mpp' as const,
+                                      text: `<strong>Flow Settlement: Cycle ${newCycle} Paid</strong> — Escrow released funds to ${selectedMachine.id} for work performed.`,
+                                      time: 'now'
+                                    }, ...fc.slice(0,49)]);
+                                    setTotalSpent(ts => ts + priceNum);
+
+                                    if (newCycle === targetCycles) {
+                                        isCompleted = true;
+                                    }
+                                    return newCycle;
+                                }
+                                return prev;
+                              });
+                          } else if (pollJson.status === 'completed' || (hasStartedExecuting && lastCyclePaid >= targetCycles)) {
+                             isCompleted = true;
+                          }
+                        }
+                    } catch (innerE: any) {
+                        console.error("Hardware streaming error", innerE);
+                        setAgentFeed(prev => [{
+                            type: 'warn' as const,
+                            text: `<strong>Execution Error</strong> — ${innerE.message}`,
+                            time: 'now'
+                        }, ...prev]);
+                    } finally {
+                        // CLEANUP: Reset UI when the loop ends
+                        setIsStreaming(false);
+                        setActiveOrderMachine(null);
+                        
+                        setAgentFeed(prev => [{
+                            type: 'pay' as const,
+                            text: `<strong>✅ JOB FINISHED</strong> — Production routine completed and verified on Soroban.`,
+                            time: 'now'
+                        }, ...prev]);
                     }
+                  } else {
+                    throw new Error("Hardware bridge rejected the job payload.");
                   }
                 } catch (e: any) {
-                  console.error("Hardware/Escrow dispatch error", e);
+                  console.error("Escrow/Freighter Error", e);
                   setAgentFeed(prev => [{
-                    type: 'decide' as const,
-                    text: `<strong>Execution Aborted</strong> — ${e.message}`,
+                    type: 'warn' as const,
+                    text: `<strong>Process Aborted</strong> — ${e.message}`,
                     time: 'now'
                   }, ...prev]);
                   setIsStreaming(false);
                   setActiveOrderMachine(null);
-                  return;
                 }
-                
-                setIsStreaming(false);
-                setActiveOrderMachine(null); 
-                setAgentFeed(prev => [{
-                  type: 'pay' as const,
-                  text: `<strong>✅ JOB SUCCESSFUL</strong> — All ${targetCycles} cycles validated on Soroban. Hardware task complete and escrow fully released.`,
-                  time: 'now'
-                }, ...prev]);
               }}
             >
               {isStreaming ? (
