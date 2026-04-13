@@ -737,56 +737,18 @@ export function Marketplace() {
               </svg>
               Upload STL or PDF...
             </div>
-            <button 
-              className="nf-btn-primary" 
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              onClick={async () => {
-                if (!selectedMachine) return;
-                
-                setAgentFeed(prev => [{
-                  type: 'warn' as const,
-                  text: `<strong>Agent Deployment Requested</strong> — Preparing MPP challenge response ($0.001 USDC) for Machine ${selectedMachine.id}.`,
-                  time: 'now'
-                }, ...prev]);
-
-                try {
-                  const endpoint = `/relay/machine_agent/evaluate_job?machine_id=${selectedMachine.id}&job_description=${encodeURIComponent(jobDescription)}`;
-                  const result = await settleMppPayment(endpoint, { method: 'GET' });
-
-                  if (result.success) {
-                    setAgentFeed(prev => [{
-                      type: 'pay',
-                      text: `<strong>MPP Settled</strong> — 0.0010 USDC confirmed on Stellar Testnet for Agent Negotiation.`,
-                      time: 'just now'
-                    }, ...prev]);
-
-                    if (result.data?.evaluation) {
-                      const evalData = result.data.evaluation;
-                      setAgentFeed(prev => [{
-                        type: 'decide',
-                        text: `<strong>Agent Negotiation: ${evalData.job_feasibility}</strong> — Machine ${evalData.machine_id}: "${evalData.ai_reasoning}"`,
-                        time: 'now'
-                      }, ...prev.slice(0, 9)]);
-                    }
-                  } else {
-                    throw new Error(result.error || 'MPP Payment Failed');
-                  }
-                } catch (err: any) {
-                  setAgentFeed(prev => [{
-                    type: 'warn',
-                    text: `<strong>Agent Deployment Failed</strong> — ${err.message}`,
-                    time: 'now'
-                  }, ...prev]);
-                }
-              }}
-              disabled={!selectedMachine || isStreaming}
-            >
-              <Zap size={14} />
-              Deploy Buyer Agent ($0.001 MPP)
-            </button>
+            <div className="nf-field-label" style={{ marginTop: '16px' }}>Job Description / G-Code</div>
+            <textarea 
+              className="nf-input-mock" 
+              style={{ width: '100%', height: '80px', fontSize: '12px', resize: 'none' }}
+              value={jobDescription}
+              onChange={e => setJobDescription(e.target.value)}
+              disabled={isStreaming}
+            />
+            
             <button 
               className="nf-btn-outline"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '12px' }}
               disabled={!selectedMachine || isStreaming}
               onClick={async () => {
                 if (!selectedMachine) return;
