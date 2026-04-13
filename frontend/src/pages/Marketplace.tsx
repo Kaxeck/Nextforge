@@ -740,15 +740,44 @@ export function Marketplace() {
             <button 
               className="nf-btn-primary" 
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              onClick={() => {
+              onClick={async () => {
                 if (!selectedMachine) return;
-                // Trigger MPP evaluation flow
-                setMppModal({
-                  endpoint: `/relay/machine_agent/evaluate_job?machine_id=${selectedMachine.id}&job_description=${encodeURIComponent(jobDescription)}`,
-                  method: 'GET',
-                  price: '$0.001',
-                  description: `Deploy your autonomous Buyer Agent to contact ${selectedMachine.id}'s onboard Machine Agent with your job payload "${jobDescription}". The underlying MPP protocol handles the $0.001 USDC negotiation fee over Stellar.`
-                });
+                
+                setAgentFeed(prev => [{
+                  type: 'warn' as const,
+                  text: `<strong>Agent Deployment Requested</strong> — Preparing MPP challenge response ($0.001 USDC) for Machine ${selectedMachine.id}.`,
+                  time: 'now'
+                }, ...prev]);
+
+                try {
+                  const endpoint = `/relay/machine_agent/evaluate_job?machine_id=${selectedMachine.id}&job_description=${encodeURIComponent(jobDescription)}`;
+                  const result = await settleMppPayment(endpoint, { method: 'GET' });
+
+                  if (result.success) {
+                    setAgentFeed(prev => [{
+                      type: 'pay',
+                      text: `<strong>MPP Settled</strong> — 0.0010 USDC confirmed on Stellar Testnet for Agent Negotiation.`,
+                      time: 'just now'
+                    }, ...prev]);
+
+                    if (result.data?.evaluation) {
+                      const evalData = result.data.evaluation;
+                      setAgentFeed(prev => [{
+                        type: 'decide',
+                        text: `<strong>Agent Negotiation: ${evalData.job_feasibility}</strong> — Machine ${evalData.machine_id}: "${evalData.ai_reasoning}"`,
+                        time: 'now'
+                      }, ...prev.slice(0, 9)]);
+                    }
+                  } else {
+                    throw new Error(result.error || 'MPP Payment Failed');
+                  }
+                } catch (err: any) {
+                  setAgentFeed(prev => [{
+                    type: 'warn',
+                    text: `<strong>Agent Deployment Failed</strong> — ${err.message}`,
+                    time: 'now'
+                  }, ...prev]);
+                }
               }}
               disabled={!selectedMachine || isStreaming}
             >
