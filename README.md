@@ -1,5 +1,7 @@
 <p align="center">
-  <img src="image.png" alt="NextForge Logo" width="300" />
+  <img src="icon.png" alt="NextForge Icon" width="100" />
+  <br/>
+  <img src="logo_text.svg" alt="NextForge" width="220" />
 </p>
 
 > **Stellar Hacks: Agents on Stellar — Machine Payments Protocol (MPP) Hackathon Submission**
