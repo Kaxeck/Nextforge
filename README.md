@@ -1,4 +1,6 @@
-# NextForge 🏭🤖
+<p align="center">
+  <img src="image.png" alt="NextForge Logo" width="300" />
+</p>
 
 > **Stellar Hacks: Agents on Stellar — Machine Payments Protocol (MPP) Hackathon Submission**
 

@@ -14,12 +14,7 @@ export function Header({ theme, toggleTheme }: { theme: string; toggleTheme: () 
   return (
     <div className="nf-header">
       <div className="nf-logo">
-        <div className="nf-logo-icon">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <polygon points="9,2 16,6 16,12 9,16 2,12 2,6" stroke="currentColor" strokeWidth="1.5" fill="none" />
-            <polygon points="9,5 13,7.5 13,10.5 9,13 5,10.5 5,7.5" fill="currentColor" opacity="0.6" />
-          </svg>
-        </div>
+        <img src="/icon.png" alt="NextForge" width="36" height="36" style={{ borderRadius: '6px' }} />
         <span className="nf-logo-text">Next<span>Forge</span></span>
       </div>
       <div className="nf-nav">
