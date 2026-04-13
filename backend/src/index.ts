@@ -33,12 +33,14 @@ pollContractEvents().catch(console.error);
 // Implements the HTTP 402 challenge-response flow per https://mpp.dev spec.
 // No external facilitator — payments settle natively via Soroban SAC.
 
-const PLATFORM_KEYPAIR = process.env.DEPLOYER_SECRET_KEY
-  ? (() => {
-      try { return Keypair.fromSecret(process.env.DEPLOYER_SECRET_KEY); }
-      catch { return null; }
-    })()
-  : null;
+const PLATFORM_KEYPAIR = (function() {
+    const secret = process.env.AGENT_SECRET_KEY || process.env.DEPLOYER_SECRET_KEY;
+    if (secret) {
+      try { return Keypair.fromSecret(secret); }
+      catch (e) { console.error("Invalid AGENT_SECRET_KEY format"); return null; }
+    }
+    return null;
+})();
 
 const PLATFORM_WALLET = PLATFORM_KEYPAIR?.publicKey() || '';
 

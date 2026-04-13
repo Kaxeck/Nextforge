@@ -104,8 +104,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         throw new Error("Machine not found on protocol registry.");
     }
 
-    if (!process.env.DEPLOYER_SECRET_KEY) {
-        throw new Error("Agent missing DEPLOYER_SECRET_KEY in environment to sign MPP payment.");
+    const agentSecret = process.env.AGENT_SECRET_KEY || process.env.DEPLOYER_SECRET_KEY;
+    if (!agentSecret) {
+        throw new Error("Agent missing AGENT_SECRET_KEY in environment to sign MPP payment.");
     }
 
     // REAL STELLAR BLOCKCHAIN TRANSACTION (Soroban Escrow) using centralized service

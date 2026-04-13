@@ -17,7 +17,8 @@ dotenv.config({ path: '../.env' }); // Adjust relative path as needed
 const RPC_URL = process.env.VITE_STELLAR_RPC_URL || 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = Networks.TESTNET;
 const CONTRACT_ID = process.env.SOROBAN_CONTRACT_ID || '';
-const ADMIN_SECRET = process.env.DEPLOYER_SECRET_KEY || ''; // The AI uses this to sign
+const secretKey = process.env.AGENT_SECRET_KEY || process.env.DEPLOYER_SECRET_KEY || '';
+const contractId = process.env.SOROBAN_CONTRACT_ID || '';
 
 if (!CONTRACT_ID) {
     console.warn("⚠️ Warning: SOROBAN_CONTRACT_ID not set.");

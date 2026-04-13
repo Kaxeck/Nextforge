@@ -137,7 +137,7 @@ python3 hardware_agent.py YOUR_MACHINE_ID
 Create a `.env` file in the project root:
 
 ```env
-DEPLOYER_SECRET_KEY=S...       # Stellar Testnet secret key (admin/AI signer)
+AGENT_SECRET_KEY=S...       # Stellar Testnet secret key (admin/AI signer)
 SOROBAN_CONTRACT_ID=C...       # Deployed contract address
 GEMINI_API_KEY=...             # Google Gemini API key for machine audits
 ```
@@ -157,18 +157,27 @@ NextForge includes two separate AI agent paradigms you can test:
 ### 1. Claude Desktop (MCP Server)
 NextForge includes an MCP (Model Context Protocol) server so Claude can act as your autonomous buyer.
 1. Build the MCP Server: `cd backend && npm run build`
-2. Add the following to your Claude Desktop config (usually at `~/.config/Claude/claude_desktop_config.json`):
+2. Add the following to your Claude Desktop config (usually at `~/.config/Claude/claude_desktop_config.json` on Mac/Linux or `%APPDATA%\Stellar\claude_desktop_config.json` on Windows):
+
+> [!IMPORTANT]
+> Change `/absolute/path/to/` to the real path on your machine and provide your testnet credentials.
+
 ```json
 {
   "mcpServers": {
     "nextforge": {
       "command": "node",
-      "args": ["/absolute/path/to/nextforge/backend/dist/mcp.js"]
+      "args": ["/absolute/path/to/nextforge/backend/dist/mcp.js"],
+      "env": {
+        "AGENT_SECRET_KEY": "YOUR_TESTNET_SECRET_KEY",
+        "SOROBAN_CONTRACT_ID": "CCUWOGEF3ZL56YNY4O35LNJWH67FNKJUAFLO5NUMKNTMKEJOIV6RVTF7",
+        "VITE_STELLAR_RPC_URL": "https://soroban-testnet.stellar.org"
+      }
     }
   }
 }
 ```
-3. Restart Claude Desktop. You can now prompt Claude: *"I need to print 50 PLA 3D models. Find a machine and pay for it."* Claude will discover machines and lock the escrow natively.
+3. Restart Claude Desktop. You can now prompt Claude: *"I need to find 3D printers on NextForge and negotiate a print job for 50 cycles."* Claude will discover machines and lock the escrow natively via Soroban.
 
 ### 2. Testing the UI & Physical Hardware Agent
 1. Have the Frontend and Backend running (`npm run dev`).
