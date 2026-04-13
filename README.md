@@ -97,7 +97,8 @@ Being transparent about the current state of the project:
 | Hardware USB/Serial bridge | ✅ Real — `pyserial` detects ports and sends G-Code |
 | Contract tests | ✅ 2/2 passing — `test_register_machine` + `test_create_and_start_order` |
 | Analytics dashboard | ✅ Real — charts use real API data, volume, and machine counts |
-| AI Self-Management (Pricing, Maintenance, Resources) | 🚧 Partial — Backend evaluators & Smart Contracts (update_price, complete_maintenance) are fully built, but hardware sensor-loop trigger is planned for v2 |
+| Multi-Wallet Order History | 🚧 Strategic Mockup — Global protocol feed is live; per-wallet persistence planned for v2 |
+| AI Self-Management (Pricing, Maintenance, Resources) | 🚧 Partial — Backend evaluators & Smart Contracts are fully built, but hardware sensor-loop trigger is planned for v2 |
 | Bounties System | 🚧 Mocked (UI only) — Full on-chain bounty claiming planned for v2 |
 
 ---
@@ -200,6 +201,7 @@ This project is licensed under the **MIT License**. See [LICENSE](./LICENSE) for
 
 ## Roadmap
 
+- [ ] **Phase 2: Decentralized Fleet Management** — Transition the `Orders` view to a fully authenticated multi-wallet dashboard, allowing owners and buyers to track their specific on-chain history across multiple sessions. Currently, the dashboard provides a global **Protocol Preview** of real-time network activity.
 - [ ] **Bring Your Own Agent (BYOA)** — Allow hardware owners to easily plug in their own custom fine-tuned LLMs (e.g., local Llama 3) for the Machine Agent, ensuring total privacy of proprietary G-Code and local decision independence.
 - [ ] **Zero-Knowledge (ZK) Hardware Proofs** — Transition from API-based execution verification to cryptographic hardware proofs. Machines will generate a ZK-Proof directly from the ESP32 demonstrating that the servos and temperature sensors consumed the exact electrical wattage required for the G-Code, making fraudulent completion claims physically and mathematically impossible on-chain.
 - [ ] **High-Frequency State Channels** — For complex multi-day CNC/printing jobs, implement Stellar payment channels allowing the Buyer and Machine to sign micro-transactions off-chain every few seconds, only settling the final aggregated state to the Soroban contract at the very end to maximize relay throughput.
